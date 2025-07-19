@@ -43,6 +43,9 @@ python -m prompt_enhancer --interactive
 # Single text correction
 python -m prompt_enhancer "გამარჯობა როგორ ხარ" --style formal
 
+# Pipeline correction (corrected -> llm_friendly)
+python -m prompt_enhancer "დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი" --pipeline
+
 # File processing
 python -m prompt_enhancer --file input.txt --output corrected.txt --style advanced
 
@@ -106,6 +109,25 @@ for result in results['results']:
 - **casual**: Casual/informal language corrections
 - **contextual**: Context-aware corrections
 - **corrected**: Only fixes typos and sentence structure (minimal changes)
+- **llm_friendly**: Makes text more LLM-friendly by adding explicit subject pronouns and clarifying references
+
+## Pipeline Feature
+
+The pipeline feature processes text through two stages sequentially:
+
+1. **Corrected Stage**: Fixes typos and sentence structure
+2. **LLM-Friendly Stage**: Makes text more explicit for language models
+
+```bash
+# Pipeline example
+python -m prompt_enhancer "დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი" --pipeline
+
+# Output shows each step:
+# 1. Input: დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი
+# 2. Corrected: დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი
+# 3. LLM-Friendly: მე დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი
+# Final Result: მე დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი
+```
 
 ## API Response Format
 

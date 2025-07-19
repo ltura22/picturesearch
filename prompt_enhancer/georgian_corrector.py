@@ -24,19 +24,8 @@ class GeorgianTextCorrector:
             "contextual": self._get_contextual_correction_prompt(),
             "formal": self._get_formal_correction_prompt(),
             "casual": self._get_casual_correction_prompt(),
-            "corrected": self._get_corrected_style_prompt()
-        }
-        
-        self.common_georgian_typos = {
-            "აა": "ა",
-            "ოო": "ო",
-            "ეე": "ე",
-            "იი": "ი",
-            "უი": "უ",
-            "უა": "უ",
-            "ოა": "ო",
-            "ეა": "ე",
-            "ია": "ი"
+            "corrected": self._get_corrected_style_prompt(),
+            "llm_friendly": self._get_llm_friendly_prompt()
         }
     
     def _get_basic_correction_prompt(self) -> str:
@@ -152,6 +141,30 @@ class GeorgianTextCorrector:
         Corrected sentence:
         """
     
+    def _get_llm_friendly_prompt(self) -> str:
+        """LLM-friendly correction prompt - makes text more clear for language models"""
+        return """
+        You are a Georgian language expert. Make the following Georgian text more LLM-friendly by adding clarity and explicit references ONLY when necessary.
+        
+        Rules:
+        1. Add explicit subject pronouns (მე, შენ, ის, ჩვენ, etc.) ONLY when they are missing and needed for clarity
+        2. Do NOT add pronouns if the sentence is already clear and grammatically correct
+        3. Fix any typos or spelling errors
+        4. Keep the original meaning and context exactly the same
+        5. Do NOT change the sentence structure unless there are actual errors
+        6. Return ONLY the LLM-friendly sentence, nothing more
+        
+        Examples:
+        - "დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი, როცა მან დამარტყა და მცემა" 
+          -> "მე დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი, როცა მან დამარტყა და მცემა"
+        - "მოდი საქმე არ გავაკეთოთ" -> "მოდი, ჩვენ ეს საქმე არ გავაკეთოთ"
+        - "ვაშლი ვჭამე" -> "მე ვაშლი ვჭამე"
+        - "საღამო კარგი იყო, მეგობრებთან ერთად ვისაუბრეთ." -> "საღამო კარგი იყო, ჩვენ მეგობრებთან ერთად ვისაუბრეთ."
+        Text to make LLM-friendly: {text}
+        
+        LLM-friendly sentence:
+        """
+    
     def _detect_context_type(self, text: str) -> str:
         """Detect the context type of the text"""
         formal_indicators = ["გთხოვთ", "მადლობა", "წინადადება", "მოთხოვნა", "დოკუმენტი"]
@@ -174,9 +187,8 @@ class GeorgianTextCorrector:
         # Remove extra whitespace
         text = re.sub(r'\s+', ' ', text.strip())
         
-        # Fix common immediate typos
-        for typo, correction in self.common_georgian_typos.items():
-            text = text.replace(typo, correction)
+        # Note: Removed automatic typo correction since double letters and other patterns
+        # are often correct in Georgian and should be handled by the LLM
         
         return text
     
@@ -261,6 +273,76 @@ class GeorgianTextCorrector:
         }
         return stats
 
+    def pipeline_correct(self, text: str, show_steps: bool = True) -> Dict[str, str]:
+        """
+        Pipeline correction: input -> corrected -> llm_friendly -> output
+        
+        Args:
+            text: Input Georgian text
+            show_steps: Whether to print intermediate results
+            
+        Returns:
+            Dictionary with all pipeline steps and final result
+        """
+        if not text or not text.strip():
+            return {"error": "No text provided"}
+        
+        results = {
+            "input": text,
+            "corrected": "",
+            "llm_friendly": "",
+            "final": ""
+        }
+        
+        if show_steps:
+            print(f"Pipeline: Input -> Corrected -> LLM-Friendly -> Output")
+            print("=" * 60)
+            print(f"1. Input: {text}")
+        
+        # Step 1: Correct typos and sentence structure
+        corrected_text = self.correct_text(text, style="corrected")
+        results["corrected"] = corrected_text
+        
+        if show_steps:
+            print(f"2. Corrected: {corrected_text}")
+        
+        # Step 2: Make LLM-friendly
+        llm_friendly_text = self.correct_text(corrected_text, style="llm_friendly")
+        results["llm_friendly"] = llm_friendly_text
+        results["final"] = llm_friendly_text
+        
+        if show_steps:
+            print(f"3. LLM-Friendly: {llm_friendly_text}")
+            print("=" * 60)
+            print(f"Final Result: {llm_friendly_text}")
+        
+        return results
+    
+    def batch_pipeline_correct(self, texts: List[str], show_steps: bool = True) -> List[Dict[str, str]]:
+        """
+        Batch pipeline correction for multiple texts
+        
+        Args:
+            texts: List of Georgian texts
+            show_steps: Whether to print intermediate results
+            
+        Returns:
+            List of dictionaries with pipeline results for each text
+        """
+        results = []
+        
+        for i, text in enumerate(texts, 1):
+            if show_steps:
+                print(f"\n--- Processing Text {i}/{len(texts)} ---")
+            
+            result = self.pipeline_correct(text, show_steps)
+            results.append(result)
+            
+            if show_steps and i < len(texts):
+                print()  # Add spacing between texts
+        
+        return results
+
 # Convenience functions for easy use
 def correct_georgian_text(text: str, style: str = "auto") -> str:
     """Simple function to correct Georgian text"""
@@ -271,6 +353,16 @@ def batch_correct_georgian(texts: List[str], style: str = "auto") -> List[str]:
     """Simple function to correct multiple Georgian texts"""
     corrector = GeorgianTextCorrector()
     return corrector.batch_correct(texts, style)
+
+def pipeline_correct_georgian(text: str, show_steps: bool = True) -> Dict[str, str]:
+    """Simple function to run pipeline correction on Georgian text"""
+    corrector = GeorgianTextCorrector()
+    return corrector.pipeline_correct(text, show_steps)
+
+def batch_pipeline_correct_georgian(texts: List[str], show_steps: bool = True) -> List[Dict[str, str]]:
+    """Simple function to run batch pipeline correction on Georgian texts"""
+    corrector = GeorgianTextCorrector()
+    return corrector.batch_pipeline_correct(texts, show_steps)
 
 if __name__ == "__main__":
     # Example usage

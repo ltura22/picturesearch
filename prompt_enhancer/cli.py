@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser(description="Georgian Text Correction Tool")
     parser.add_argument("text", nargs="?", help="Text to correct")
     parser.add_argument("--style", "-s", default="auto", 
-                       choices=["basic", "advanced", "contextual", "formal", "casual", "corrected", "auto"],
+                       choices=["basic", "advanced", "contextual", "formal", "casual", "corrected", "llm_friendly", "auto"],
                        help="Correction style")
     parser.add_argument("--file", "-f", help="Input file with text to correct")
     parser.add_argument("--output", "-o", help="Output file for results")
@@ -20,6 +20,7 @@ def main():
     parser.add_argument("--json", "-j", action="store_true", help="Output in JSON format")
     parser.add_argument("--stats", action="store_true", help="Show correction statistics")
     parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode")
+    parser.add_argument("--pipeline", "-p", action="store_true", help="Run pipeline: corrected -> llm_friendly")
     
     args = parser.parse_args()
     
@@ -27,6 +28,14 @@ def main():
     
     if args.interactive:
         interactive_mode(api)
+    elif args.pipeline:
+        if args.text:
+            process_pipeline_text(args.text, args.json, args.stats, api)
+        elif args.file:
+            process_pipeline_file(args.file, args.output, args.batch, args.json, args.stats, api)
+        else:
+            print("No text provided for pipeline. Use --help for usage information.")
+            sys.exit(1)
     elif args.file:
         process_file(args.file, args.output, args.style, args.batch, args.json, args.stats, api)
     elif args.text:
@@ -58,7 +67,7 @@ def interactive_mode(api):
             elif not text:
                 continue
             
-            style = input("Style (auto/basic/advanced/formal/casual/corrected): ").strip() or "auto"
+            style = input("Style (auto/basic/advanced/formal/casual/corrected/llm_friendly): ").strip() or "auto"
             
             result = api.correct_single(text, style)
             
@@ -153,6 +162,76 @@ def process_file(input_file, output_file, style, batch, json_output, show_stats,
         print(f"Error processing file: {e}")
         sys.exit(1)
 
+def process_pipeline_text(text, json_output, show_stats, api):
+    """Process a single text through the pipeline"""
+    from .georgian_corrector import pipeline_correct_georgian
+    
+    result = pipeline_correct_georgian(text, show_steps=True)
+    
+    if json_output:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        if "error" not in result:
+            if show_stats:
+                # Calculate stats for the pipeline
+                input_len = len(result["input"])
+                final_len = len(result["final"])
+                changes = sum(1 for a, b in zip(result["input"], result["final"]) if a != b)
+                print(f"\nPipeline Statistics:")
+                print(f"  Input length: {input_len}")
+                print(f"  Final length: {final_len}")
+                print(f"  Character changes: {changes}")
+                print(f"  Improvement ratio: {final_len/input_len:.2f}")
+
+def process_pipeline_file(input_file, output_file, batch, json_output, show_stats, api):
+    """Process text from a file through the pipeline"""
+    from .georgian_corrector import batch_pipeline_correct_georgian
+    
+    try:
+        with open(input_file, 'r', encoding='utf-8') as f:
+            if batch:
+                texts = [line.strip() for line in f if line.strip()]
+                results = batch_pipeline_correct_georgian(texts, show_steps=True)
+            else:
+                text = f.read().strip()
+                results = [pipeline_correct_georgian(text, show_steps=True)]
+        
+        if output_file:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                if json_output:
+                    json.dump(results, f, indent=2, ensure_ascii=False)
+                else:
+                    for i, result in enumerate(results, 1):
+                        f.write(f"Text {i} Pipeline Results:\n")
+                        f.write(f"Input: {result['input']}\n")
+                        f.write(f"Corrected: {result['corrected']}\n")
+                        f.write(f"LLM-Friendly: {result['llm_friendly']}\n")
+                        f.write(f"Final: {result['final']}\n")
+                        if show_stats:
+                            input_len = len(result["input"])
+                            final_len = len(result["final"])
+                            changes = sum(1 for a, b in zip(result["input"], result["final"]) if a != b)
+                            f.write(f"Stats: {changes} changes, ratio: {final_len/input_len:.2f}\n")
+                        f.write("\n")
+        else:
+            if json_output:
+                print(json.dumps(results, indent=2, ensure_ascii=False))
+            else:
+                for i, result in enumerate(results, 1):
+                    print(f"\nText {i} Final Result: {result['final']}")
+                    if show_stats:
+                        input_len = len(result["input"])
+                        final_len = len(result["final"])
+                        changes = sum(1 for a, b in zip(result["input"], result["final"]) if a != b)
+                        print(f"Stats: {changes} changes, ratio: {final_len/input_len:.2f}")
+                    
+    except FileNotFoundError:
+        print(f"Error: File '{input_file}' not found")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error processing file: {e}")
+        sys.exit(1)
+
 def print_help():
     """Print help information"""
     print("\nCommands:")
@@ -160,12 +239,15 @@ def print_help():
     print("  styles  - Show available correction styles")
     print("  quit    - Exit the program")
     print("\nStyles:")
-    print("  auto      - Auto-detect style (default)")
-    print("  basic     - Basic correction")
-    print("  advanced  - Advanced correction with context")
-    print("  formal    - Formal/business style")
-    print("  casual    - Casual/informal style")
-    print("  corrected - Only fix typos and sentence structure")
+    print("  auto         - Auto-detect style (default)")
+    print("  basic        - Basic correction")
+    print("  advanced     - Advanced correction with context")
+    print("  formal       - Formal/business style")
+    print("  casual       - Casual/informal style")
+    print("  corrected    - Only fix typos and sentence structure")
+    print("  llm_friendly - Make text more LLM-friendly with explicit references")
+    print("\nPipeline:")
+    print("  Use --pipeline to run: Input -> Corrected -> LLM-Friendly -> Output")
 
 if __name__ == "__main__":
     main() 
