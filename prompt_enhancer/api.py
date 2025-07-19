@@ -1,113 +1,165 @@
 """
-Simple API interface for Georgian Text Correction
+API Interface for Georgian Text Correction
 """
 
-from .georgian_corrector import GeorgianTextCorrector, correct_georgian_text, batch_correct_georgian
-import json
-from typing import Dict, List, Any
+from .georgian_corrector import GeorgianTextCorrector, pipeline_correct_georgian, batch_pipeline_correct_georgian
 
 class GeorgianCorrectionAPI:
-    """
-    Simple API interface for Georgian text correction
-    """
+    """API interface for Georgian text correction"""
     
     def __init__(self):
         self.corrector = GeorgianTextCorrector()
     
-    def correct_single(self, text: str, style: str = "auto") -> Dict[str, Any]:
-        """
-        Correct a single text
-        
-        Args:
-            text: Georgian text to correct
-            style: Correction style
+    def correct_single(self, text: str, style: str = "auto") -> dict:
+        """Correct a single text"""
+        try:
+            corrected = self.corrector.correct_text(text, style)
+            stats = self.corrector.get_correction_stats(text, corrected)
             
-        Returns:
-            Dictionary with original, corrected text and stats
-        """
-        if not text:
-            return {"error": "No text provided"}
-        
-        original = text
-        corrected = self.corrector.correct_text(text, style)
-        stats = self.corrector.get_correction_stats(original, corrected)
-        
-        return {
-            "original": original,
-            "corrected": corrected,
-            "style": style,
-            "stats": stats,
-            "success": True
-        }
+            return {
+                "success": True,
+                "original": text,
+                "corrected": corrected,
+                "style": style,
+                "stats": stats
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "original": text
+            }
     
-    def correct_batch(self, texts: List[str], style: str = "auto") -> Dict[str, Any]:
-        """
-        Correct multiple texts
-        
-        Args:
-            texts: List of Georgian texts
-            style: Correction style
+    def correct_batch(self, texts: list, style: str = "auto") -> dict:
+        """Correct multiple texts"""
+        try:
+            corrected_texts = self.corrector.batch_correct(texts, style)
+            results = []
             
-        Returns:
-            Dictionary with results
-        """
-        if not texts:
-            return {"error": "No texts provided"}
-        
-        results = []
-        for text in texts:
-            result = self.correct_single(text, style)
-            results.append(result)
-        
-        return {
-            "results": results,
-            "total_texts": len(texts),
-            "style": style,
-            "success": True
-        }
+            for i, (original, corrected) in enumerate(zip(texts, corrected_texts)):
+                stats = self.corrector.get_correction_stats(original, corrected)
+                results.append({
+                    "original": original,
+                    "corrected": corrected,
+                    "style": style,
+                    "stats": stats
+                })
+            
+            return {
+                "success": True,
+                "results": results,
+                "total_texts": len(texts)
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "total_texts": len(texts)
+            }
     
-    def get_available_styles(self) -> List[str]:
-        """Get available correction styles"""
-        return list(self.corrector.correction_prompts.keys()) + ["auto"]
+    def translate_single(self, text: str) -> dict:
+        """Translate a single text to English"""
+        try:
+            translated = self.corrector.translate_to_english(text)
+            
+            return {
+                "success": True,
+                "original": text,
+                "translated": translated
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "original": text
+            }
     
-    def get_stats(self) -> Dict[str, Any]:
-        """Get module statistics"""
-        return {
-            "available_styles": self.get_available_styles(),
-            "common_typos": len(self.corrector.common_georgian_typos),
-            "module_version": "1.0.0"
-        }
+    def translate_batch(self, texts: list) -> dict:
+        """Translate multiple texts to English"""
+        try:
+            translated_texts = self.corrector.batch_translate_to_english(texts)
+            results = []
+            
+            for original, translated in zip(texts, translated_texts):
+                results.append({
+                    "original": original,
+                    "translated": translated
+                })
+            
+            return {
+                "success": True,
+                "results": results,
+                "total_texts": len(texts)
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "total_texts": len(texts)
+            }
+    
+    def pipeline_single(self, text: str, include_translation: bool = False) -> dict:
+        """Run pipeline on a single text"""
+        try:
+            result = pipeline_correct_georgian(text, show_steps=False, include_translation=include_translation)
+            return {
+                "success": True,
+                "result": result
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "original": text
+            }
+    
+    def pipeline_batch(self, texts: list, include_translation: bool = False) -> dict:
+        """Run pipeline on multiple texts"""
+        try:
+            results = batch_pipeline_correct_georgian(texts, show_steps=False, include_translation=include_translation)
+            return {
+                "success": True,
+                "results": results,
+                "total_texts": len(texts)
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "total_texts": len(texts)
+            }
+    
+    def get_available_styles(self) -> list:
+        """Get list of available correction styles"""
+        return list(self.corrector.correction_prompts.keys())
 
-# Global API instance
-api = GeorgianCorrectionAPI()
-
-# Convenience functions
-def correct_text_api(text: str, style: str = "auto") -> Dict[str, Any]:
-    """Simple API function to correct text"""
+# Convenience functions for direct API access
+def correct_text_api(text: str, style: str = "auto") -> dict:
+    """API function to correct text"""
+    api = GeorgianCorrectionAPI()
     return api.correct_single(text, style)
 
-def correct_batch_api(texts: List[str], style: str = "auto") -> Dict[str, Any]:
-    """Simple API function to correct multiple texts"""
+def correct_batch_api(texts: list, style: str = "auto") -> dict:
+    """API function to correct multiple texts"""
+    api = GeorgianCorrectionAPI()
     return api.correct_batch(texts, style)
 
-if __name__ == "__main__":
-    # Example API usage
-    print("Georgian Correction API")
-    print("=" * 30)
-    
-    # Test single correction
-    test_text = "გამარჯობა როგორ ხარ დღეს ძაან კარგი ამინდია"
-    result = correct_text_api(test_text, "auto")
-    print(f"Single correction result: {json.dumps(result, indent=2, ensure_ascii=False)}")
-    
-    # Test batch correction
-    test_texts = [
-        "გთხოვთ მომაწოდოთ ინფორმაცია",
-        "მე ვარ სტუდენტი და ვსწავლობ"
-    ]
-    batch_result = correct_batch_api(test_texts, "formal")
-    print(f"\nBatch correction result: {json.dumps(batch_result, indent=2, ensure_ascii=False)}")
-    
-    # Get available styles
-    styles = api.get_available_styles()
-    print(f"\nAvailable styles: {styles}") 
+def translate_text_api(text: str) -> dict:
+    """API function to translate text to English"""
+    api = GeorgianCorrectionAPI()
+    return api.translate_single(text)
+
+def translate_batch_api(texts: list) -> dict:
+    """API function to translate multiple texts to English"""
+    api = GeorgianCorrectionAPI()
+    return api.translate_batch(texts)
+
+def pipeline_text_api(text: str, include_translation: bool = False) -> dict:
+    """API function to run pipeline on text"""
+    api = GeorgianCorrectionAPI()
+    return api.pipeline_single(text, include_translation)
+
+def pipeline_batch_api(texts: list, include_translation: bool = False) -> dict:
+    """API function to run pipeline on multiple texts"""
+    api = GeorgianCorrectionAPI()
+    return api.pipeline_batch(texts, include_translation) 

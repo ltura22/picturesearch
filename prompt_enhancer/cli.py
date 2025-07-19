@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser(description="Georgian Text Correction Tool")
     parser.add_argument("text", nargs="?", help="Text to correct")
     parser.add_argument("--style", "-s", default="auto", 
-                       choices=["basic", "advanced", "contextual", "formal", "casual", "corrected", "llm_friendly", "auto"],
+                       choices=["basic", "advanced", "contextual", "formal", "casual", "corrected", "llm_friendly", "translate_to_english", "auto"],
                        help="Correction style")
     parser.add_argument("--file", "-f", help="Input file with text to correct")
     parser.add_argument("--output", "-o", help="Output file for results")
@@ -21,6 +21,7 @@ def main():
     parser.add_argument("--stats", action="store_true", help="Show correction statistics")
     parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode")
     parser.add_argument("--pipeline", "-p", action="store_true", help="Run pipeline: corrected -> llm_friendly")
+    parser.add_argument("--translate", "-t", action="store_true", help="Include translation in pipeline")
     
     args = parser.parse_args()
     
@@ -30,9 +31,9 @@ def main():
         interactive_mode(api)
     elif args.pipeline:
         if args.text:
-            process_pipeline_text(args.text, args.json, args.stats, api)
+            process_pipeline_text(args.text, args.json, args.stats, api, args.translate)
         elif args.file:
-            process_pipeline_file(args.file, args.output, args.batch, args.json, args.stats, api)
+            process_pipeline_file(args.file, args.output, args.batch, args.json, args.stats, api, args.translate)
         else:
             print("No text provided for pipeline. Use --help for usage information.")
             sys.exit(1)
@@ -162,11 +163,11 @@ def process_file(input_file, output_file, style, batch, json_output, show_stats,
         print(f"Error processing file: {e}")
         sys.exit(1)
 
-def process_pipeline_text(text, json_output, show_stats, api):
+def process_pipeline_text(text, json_output, show_stats, api, translate):
     """Process a single text through the pipeline"""
     from .georgian_corrector import pipeline_correct_georgian
     
-    result = pipeline_correct_georgian(text, show_steps=True)
+    result = pipeline_correct_georgian(text, show_steps=True, include_translation=translate)
     
     if json_output:
         print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -183,7 +184,7 @@ def process_pipeline_text(text, json_output, show_stats, api):
                 print(f"  Character changes: {changes}")
                 print(f"  Improvement ratio: {final_len/input_len:.2f}")
 
-def process_pipeline_file(input_file, output_file, batch, json_output, show_stats, api):
+def process_pipeline_file(input_file, output_file, batch, json_output, show_stats, api, translate):
     """Process text from a file through the pipeline"""
     from .georgian_corrector import batch_pipeline_correct_georgian
     
@@ -191,10 +192,10 @@ def process_pipeline_file(input_file, output_file, batch, json_output, show_stat
         with open(input_file, 'r', encoding='utf-8') as f:
             if batch:
                 texts = [line.strip() for line in f if line.strip()]
-                results = batch_pipeline_correct_georgian(texts, show_steps=True)
+                results = batch_pipeline_correct_georgian(texts, show_steps=True, include_translation=translate)
             else:
                 text = f.read().strip()
-                results = [pipeline_correct_georgian(text, show_steps=True)]
+                results = [pipeline_correct_georgian(text, show_steps=True, include_translation=translate)]
         
         if output_file:
             with open(output_file, 'w', encoding='utf-8') as f:
@@ -246,8 +247,10 @@ def print_help():
     print("  casual       - Casual/informal style")
     print("  corrected    - Only fix typos and sentence structure")
     print("  llm_friendly - Make text more LLM-friendly with explicit references")
+    print("  translate_to_english - Translate Georgian text to English")
     print("\nPipeline:")
     print("  Use --pipeline to run: Input -> Corrected -> LLM-Friendly -> Output")
+    print("  Use --translate with --pipeline to include translation.")
 
 if __name__ == "__main__":
     main() 

@@ -25,7 +25,8 @@ class GeorgianTextCorrector:
             "formal": self._get_formal_correction_prompt(),
             "casual": self._get_casual_correction_prompt(),
             "corrected": self._get_corrected_style_prompt(),
-            "llm_friendly": self._get_llm_friendly_prompt()
+            "llm_friendly": self._get_llm_friendly_prompt(),
+            "translate_to_english": self._get_translate_to_english_prompt()
         }
     
     def _get_basic_correction_prompt(self) -> str:
@@ -181,6 +182,30 @@ class GeorgianTextCorrector:
         LLM-friendly sentence:
         """
     
+    def _get_translate_to_english_prompt(self) -> str:
+        """Translate to English prompt"""
+        return """
+        You are a professional Georgian to English translator. Translate the following Georgian text to English.
+        
+        Rules:
+        1. Provide accurate and natural English translation
+        2. Maintain the original meaning and context
+        3. Use appropriate English grammar and style
+        4. Preserve the tone (formal/casual) of the original text
+        5. Translate idiomatic expressions appropriately
+        6. Return ONLY the English translation, nothing more
+        
+        Examples:
+        - "გამარჯობა, როგორ ხარ?" -> "Hello, how are you?"
+        - "დღეს ძალიან კარგი ამინდია" -> "The weather is very good today"
+        - "მე სკოლაში ვსწავლობ" -> "I study at school"
+        - "ჩვენ მეგობრებთან ერთად ვისაუბრეთ" -> "We talked with friends"
+        
+        Georgian text to translate: {text}
+        
+        English translation:
+        """
+    
     def _detect_context_type(self, text: str) -> str:
         """Detect the context type of the text"""
         formal_indicators = ["გთხოვთ", "მადლობა", "წინადადება", "მოთხოვნა", "დოკუმენტი"]
@@ -289,13 +314,58 @@ class GeorgianTextCorrector:
         }
         return stats
 
-    def pipeline_correct(self, text: str, show_steps: bool = True) -> Dict[str, str]:
+    def translate_to_english(self, text: str) -> str:
         """
-        Pipeline correction: input -> corrected -> llm_friendly -> output
+        Translate Georgian text to English
+        
+        Args:
+            text: Georgian text to translate
+            
+        Returns:
+            English translation
+        """
+        if not text or not text.strip():
+            return text
+        
+        # Preprocess the text
+        processed_text = self._preprocess_text(text)
+        
+        # Get translation prompt
+        prompt_template = self.correction_prompts["translate_to_english"]
+        prompt = prompt_template.format(text=processed_text)
+        
+        # Get translation from Gemini
+        try:
+            translated_text = ask_gemini(prompt)
+            return translated_text.strip()
+        except Exception as e:
+            print(f"Error during translation: {e}")
+            return processed_text
+    
+    def batch_translate_to_english(self, texts: List[str]) -> List[str]:
+        """
+        Translate multiple Georgian texts to English
+        
+        Args:
+            texts: List of Georgian texts to translate
+            
+        Returns:
+            List of English translations
+        """
+        translated_texts = []
+        for text in texts:
+            translated = self.translate_to_english(text)
+            translated_texts.append(translated)
+        return translated_texts
+
+    def pipeline_correct(self, text: str, show_steps: bool = True, include_translation: bool = False) -> Dict[str, str]:
+        """
+        Pipeline correction: input -> corrected -> llm_friendly -> (optional) translation -> output
         
         Args:
             text: Input Georgian text
             show_steps: Whether to print intermediate results
+            include_translation: Whether to include English translation in the pipeline
             
         Returns:
             Dictionary with all pipeline steps and final result
@@ -310,8 +380,15 @@ class GeorgianTextCorrector:
             "final": ""
         }
         
+        if include_translation:
+            results["translation"] = ""
+        
         if show_steps:
-            print(f"Pipeline: Input -> Corrected -> LLM-Friendly -> Output")
+            pipeline_steps = "Input -> Corrected -> LLM-Friendly"
+            if include_translation:
+                pipeline_steps += " -> Translation"
+            pipeline_steps += " -> Output"
+            print(f"Pipeline: {pipeline_steps}")
             print("=" * 60)
             print(f"1. Input: {text}")
         
@@ -325,22 +402,35 @@ class GeorgianTextCorrector:
         # Step 2: Make LLM-friendly
         llm_friendly_text = self.correct_text(corrected_text, style="llm_friendly")
         results["llm_friendly"] = llm_friendly_text
-        results["final"] = llm_friendly_text
         
         if show_steps:
             print(f"3. LLM-Friendly: {llm_friendly_text}")
+        
+        # Step 3: Translate to English (optional)
+        if include_translation:
+            translated_text = self.translate_to_english(llm_friendly_text)
+            results["translation"] = translated_text
+            results["final"] = translated_text
+            
+            if show_steps:
+                print(f"4. Translation: {translated_text}")
+        else:
+            results["final"] = llm_friendly_text
+        
+        if show_steps:
             print("=" * 60)
-            print(f"Final Result: {llm_friendly_text}")
+            print(f"Final Result: {results['final']}")
         
         return results
     
-    def batch_pipeline_correct(self, texts: List[str], show_steps: bool = True) -> List[Dict[str, str]]:
+    def batch_pipeline_correct(self, texts: List[str], show_steps: bool = True, include_translation: bool = False) -> List[Dict[str, str]]:
         """
         Batch pipeline correction for multiple texts
         
         Args:
             texts: List of Georgian texts
             show_steps: Whether to print intermediate results
+            include_translation: Whether to include English translation in the pipeline
             
         Returns:
             List of dictionaries with pipeline results for each text
@@ -351,7 +441,7 @@ class GeorgianTextCorrector:
             if show_steps:
                 print(f"\n--- Processing Text {i}/{len(texts)} ---")
             
-            result = self.pipeline_correct(text, show_steps)
+            result = self.pipeline_correct(text, show_steps, include_translation)
             results.append(result)
             
             if show_steps and i < len(texts):
@@ -370,15 +460,25 @@ def batch_correct_georgian(texts: List[str], style: str = "auto") -> List[str]:
     corrector = GeorgianTextCorrector()
     return corrector.batch_correct(texts, style)
 
-def pipeline_correct_georgian(text: str, show_steps: bool = True) -> Dict[str, str]:
+def translate_georgian_to_english(text: str) -> str:
+    """Simple function to translate Georgian text to English"""
+    corrector = GeorgianTextCorrector()
+    return corrector.translate_to_english(text)
+
+def batch_translate_georgian_to_english(texts: List[str]) -> List[str]:
+    """Simple function to translate multiple Georgian texts to English"""
+    corrector = GeorgianTextCorrector()
+    return corrector.batch_translate_to_english(texts)
+
+def pipeline_correct_georgian(text: str, show_steps: bool = True, include_translation: bool = False) -> Dict[str, str]:
     """Simple function to run pipeline correction on Georgian text"""
     corrector = GeorgianTextCorrector()
-    return corrector.pipeline_correct(text, show_steps)
+    return corrector.pipeline_correct(text, show_steps, include_translation)
 
-def batch_pipeline_correct_georgian(texts: List[str], show_steps: bool = True) -> List[Dict[str, str]]:
+def batch_pipeline_correct_georgian(texts: List[str], show_steps: bool = True, include_translation: bool = False) -> List[Dict[str, str]]:
     """Simple function to run batch pipeline correction on Georgian texts"""
     corrector = GeorgianTextCorrector()
-    return corrector.batch_pipeline_correct(texts, show_steps)
+    return corrector.batch_pipeline_correct(texts, show_steps, include_translation)
 
 if __name__ == "__main__":
     # Example usage

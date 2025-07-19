@@ -11,6 +11,8 @@ A microservice-style prompt engineering module for correcting bad Georgian text 
 - **API Interface**: Simple API for integration
 - **CLI Tool**: Command-line interface for easy testing
 - **Preprocessing**: Handles common Georgian typing errors
+- **Translation**: Translate Georgian text to English
+- **Pipeline Processing**: Multi-stage correction with optional translation
 
 ## Installation
 
@@ -46,6 +48,12 @@ python -m prompt_enhancer "გამარჯობა როგორ ხარ
 # Pipeline correction (corrected -> llm_friendly)
 python -m prompt_enhancer "დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი" --pipeline
 
+# Pipeline with translation (corrected -> llm_friendly -> english)
+python -m prompt_enhancer "საღამო კარგი იყო, მეგობრებთან ერთად ვისაუბირეთ." --pipeline --translate
+
+# Direct translation to English
+python -m prompt_enhancer "გამარჯობა, როგორ ხარ?" --style translate_to_english
+
 # File processing
 python -m prompt_enhancer --file input.txt --output corrected.txt --style advanced
 
@@ -59,12 +67,16 @@ python -m prompt_enhancer --help
 ### Simple Function Usage
 
 ```python
-from prompt_enhancer.georgian_corrector import correct_georgian_text
+from prompt_enhancer.georgian_corrector import correct_georgian_text, translate_georgian_to_english
 
 # Correct a single text
 text = "გამარჯობა როგორ ხარ დღეს ძაან კარგი ამინდია"
 corrected = correct_georgian_text(text, style="auto")
 print(corrected)
+
+# Translate to English
+english = translate_georgian_to_english(text)
+print(english)
 ```
 
 ### Class-based Usage
@@ -77,9 +89,15 @@ corrector = GeorgianTextCorrector()
 # Correct with specific style
 corrected = corrector.correct_text("თქვენი ტექსტი", style="formal")
 
+# Translate to English
+english = corrector.translate_to_english("გამარჯობა, როგორ ხარ?")
+
 # Batch correction
 texts = ["ტექსტი 1", "ტექსტი 2", "ტექსტი 3"]
 corrected_texts = corrector.batch_correct(texts, style="casual")
+
+# Batch translation
+english_texts = corrector.batch_translate_to_english(texts)
 
 # Get statistics
 stats = corrector.get_correction_stats(original_text, corrected_text)
@@ -88,16 +106,19 @@ stats = corrector.get_correction_stats(original_text, corrected_text)
 ### API Usage
 
 ```python
-from prompt_enhancer.api import correct_text_api, correct_batch_api
+from prompt_enhancer.api import correct_text_api, translate_text_api, pipeline_text_api
 
 # Single text correction
 result = correct_text_api("თქვენი ტექსტი", style="advanced")
 print(result['corrected'])
 
-# Batch correction
-results = correct_batch_api(["ტექსტი 1", "ტექსტი 2"], style="formal")
-for result in results['results']:
-    print(result['corrected'])
+# Single text translation
+result = translate_text_api("გამარჯობა, როგორ ხარ?")
+print(result['translated'])
+
+# Pipeline with translation
+result = pipeline_text_api("დღეს კარგი ამინდია", include_translation=True)
+print(result['result']['final'])  # English translation
 ```
 
 ## Correction Styles
@@ -110,23 +131,41 @@ for result in results['results']:
 - **contextual**: Context-aware corrections
 - **corrected**: Only fixes typos and sentence structure (minimal changes)
 - **llm_friendly**: Makes text more LLM-friendly by adding explicit subject pronouns and clarifying references
+- **translate_to_english**: Translates Georgian text to English
 
 ## Pipeline Feature
 
-The pipeline feature processes text through two stages sequentially:
+The pipeline feature processes text through multiple stages sequentially:
 
 1. **Corrected Stage**: Fixes typos and sentence structure
 2. **LLM-Friendly Stage**: Makes text more explicit for language models
+3. **Translation Stage** (optional): Translates to English
 
 ```bash
-# Pipeline example
+# Basic pipeline
 python -m prompt_enhancer "დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი" --pipeline
 
+# Pipeline with translation
+python -m prompt_enhancer "საღამო კარგი იყო, მეგობრებთან ერთად ვისაუბირეთ." --pipeline --translate
+
 # Output shows each step:
-# 1. Input: დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი
-# 2. Corrected: დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი
-# 3. LLM-Friendly: მე დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი
-# Final Result: მე დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი
+# 1. Input: საღამო კარგი იყო, მეგობრებთან ერთად ვისაუბირეთ.
+# 2. Corrected: საღამო კარგი იყო, მეგობრებთან ერთად ვისაუბრეთ.
+# 3. LLM-Friendly: საღამო კარგი იყო, ჩვენ მეგობრებთან ერთად ვისაუბრეთ.
+# 4. Translation: The evening was pleasant; we chatted with friends.
+# Final Result: The evening was pleasant; we chatted with friends.
+```
+
+## Translation Examples
+
+```bash
+# Direct translation
+python -m prompt_enhancer "გამარჯობა, როგორ ხარ?" --style translate_to_english
+# Output: "Hello, how are you?"
+
+# Pipeline with translation
+python -m prompt_enhancer "მე სკოლაში ვსწავლობ" --pipeline --translate
+# Output: "I study at school"
 ```
 
 ## API Response Format
@@ -161,6 +200,13 @@ python -m prompt_enhancer "გამარჯობა როგორ ხარ
 ```bash
 python -m prompt_enhancer "გთხოვთ მომაწოდოთ ინფორმაცია პროდუქტის შესახებ" --style formal
 # Output: "გთხოვთ, მომაწოდოთ ინფორმაცია პროდუქტის შესახებ."
+```
+
+### Translation
+
+```bash
+python -m prompt_enhancer "დღეს ძალიან კარგი ამინდია" --style translate_to_english
+# Output: "The weather is very good today"
 ```
 
 ### Interactive Mode
