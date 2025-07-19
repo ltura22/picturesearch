@@ -135,12 +135,16 @@ class GeorgianTextCorrector:
         3. Do NOT change possessive forms that are already correct (like "ჩემი მეგობარი" should stay as "ჩემი მეგობარი")
         4. Do not change the meaning or context
         5. Do not add explanations or additional text
-        6. Return ONLY the corrected sentence, nothing more
+        6. Do NOT change word order unless there are actual grammatical errors
+        7. Do NOT replace words with different meanings (like "წასვლა" should not become "წასვლის შემდეგ")
+        8. Return ONLY the corrected sentence, nothing more
         
         Examples:
         - "დრეს ვმონაწილეობდი" -> "დღეს ვმონაწილეობდი" (fix typo)
         - "ვისაუბირეთ" -> "ვისაუბრეთ" (fix typo)
         - "ჩემი მეგობარი თბილისში წავიდა" -> "ჩემი მეგობარი თბილისში წავიდა" (no changes needed)
+        - "დეს მე მივედი სკოლაში" -> "დღეს მე მივედი სკოლაში" (fix typo, keep word order)
+        - "დრეს წასვლა და საღამო ერთად გავატარეთ" -> "დღეს წავედით და საღამო ერთად გავატარეთ" (fix typo and verb form)
         
         Text to correct: {text}
         
@@ -159,7 +163,9 @@ class GeorgianTextCorrector:
         4. Fix any typos or spelling errors
         5. Keep the original meaning and context exactly the same
         6. Do NOT change the sentence structure unless there are actual errors
-        7. Return ONLY the LLM-friendly sentence, nothing more
+        7. For third person singular subjects, use "ის" (not "მათ")
+        8. Do NOT change word order unless there are actual grammatical errors
+        9. Return ONLY the LLM-friendly sentence, nothing more
         
         Examples:
         - "დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი, როცა მან დამარტყა და მცემა" 
@@ -168,6 +174,8 @@ class GeorgianTextCorrector:
         - "ვაშლი ვჭამე" -> "მე ვაშლი ვჭამე"
         - "საღამო კარგი იყო, მეგობრებთან ერთად ვისაუბრეთ." -> "საღამო კარგი იყო, ჩვენ მეგობრებთან ერთად ვისაუბრეთ."
         - "ჩემი მეგობარი თბილისში წავიდა და ახალი სამსახური დაიწყო." -> "ჩემი მეგობარი თბილისში წავიდა და ახალი სამსახური დაიწყო." (no changes needed)
+        - "სკოლაში წავიდა და მეგობრებთან ერთად იმღერა." -> "ის სკოლაში წავიდა და მეგობრებთან ერთად იმღერა."
+        - "დღეს წავედით და საღამო ერთად გავატარეთ." -> "ჩვენ დღეს წავედით და საღამო ერთად გავატარეთ."
         Text to make LLM-friendly: {text}
         
         LLM-friendly sentence:
