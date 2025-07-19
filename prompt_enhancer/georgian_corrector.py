@@ -132,9 +132,15 @@ class GeorgianTextCorrector:
         Rules:
         1. Only fix spelling errors and typos
         2. Fix basic sentence structure issues
-        3. Do not change the meaning or context
-        4. Do not add explanations or additional text
-        5. Return ONLY the corrected sentence, nothing more
+        3. Do NOT change possessive forms that are already correct (like "ჩემი მეგობარი" should stay as "ჩემი მეგობარი")
+        4. Do not change the meaning or context
+        5. Do not add explanations or additional text
+        6. Return ONLY the corrected sentence, nothing more
+        
+        Examples:
+        - "დრეს ვმონაწილეობდი" -> "დღეს ვმონაწილეობდი" (fix typo)
+        - "ვისაუბირეთ" -> "ვისაუბრეთ" (fix typo)
+        - "ჩემი მეგობარი თბილისში წავიდა" -> "ჩემი მეგობარი თბილისში წავიდა" (no changes needed)
         
         Text to correct: {text}
         
@@ -149,10 +155,11 @@ class GeorgianTextCorrector:
         Rules:
         1. Add explicit subject pronouns (მე, შენ, ის, ჩვენ, etc.) ONLY when they are missing and needed for clarity
         2. Do NOT add pronouns if the sentence is already clear and grammatically correct
-        3. Fix any typos or spelling errors
-        4. Keep the original meaning and context exactly the same
-        5. Do NOT change the sentence structure unless there are actual errors
-        6. Return ONLY the LLM-friendly sentence, nothing more
+        3. Do NOT change existing subjects or possessive forms (like "ჩემი მეგობარი" should stay as "ჩემი მეგობარი")
+        4. Fix any typos or spelling errors
+        5. Keep the original meaning and context exactly the same
+        6. Do NOT change the sentence structure unless there are actual errors
+        7. Return ONLY the LLM-friendly sentence, nothing more
         
         Examples:
         - "დღეს ძალიან მნიშვნელოვან ადამიანს ვესაუბრებოდი, როცა მან დამარტყა და მცემა" 
@@ -160,6 +167,7 @@ class GeorgianTextCorrector:
         - "მოდი საქმე არ გავაკეთოთ" -> "მოდი, ჩვენ ეს საქმე არ გავაკეთოთ"
         - "ვაშლი ვჭამე" -> "მე ვაშლი ვჭამე"
         - "საღამო კარგი იყო, მეგობრებთან ერთად ვისაუბრეთ." -> "საღამო კარგი იყო, ჩვენ მეგობრებთან ერთად ვისაუბრეთ."
+        - "ჩემი მეგობარი თბილისში წავიდა და ახალი სამსახური დაიწყო." -> "ჩემი მეგობარი თბილისში წავიდა და ახალი სამსახური დაიწყო." (no changes needed)
         Text to make LLM-friendly: {text}
         
         LLM-friendly sentence:
