@@ -40,7 +40,7 @@ A full-stack AI-powered application for searching and analyzing pictures using n
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/ltura22/picturesearch/pulse
 cd picturesearch
 ```
 
@@ -56,8 +56,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 #### Install Python Dependencies
 
 ```bash
-pip install -e .
-pip install flask flask-cors
+pip install -r requirements.txt
 ```
 
 #### Configure Environment Variables
@@ -66,6 +65,15 @@ Create a `.env` file in the root directory:
 
 ```env
 GOOGLE_API_KEY=your_google_gemini_api_key_here
+```
+
+#### Setup Picture Database
+
+Create a `data` folder and add your pictures:
+
+```bash
+mkdir data
+# Add your image files (*.jpg, *.jpeg, *.png, *.gif) to the data folder
 ```
 
 ### 3. Frontend Setup
@@ -96,6 +104,20 @@ npm start
 ```
 
 The React app will be available at: `http://localhost:3000`
+
+### Stopping the Application
+
+To stop running processes:
+
+```bash
+# Stop the React app: Press Ctrl+C in the frontend terminal
+
+# Stop the API server: Press Ctrl+C in the backend terminal
+
+# If port is still in use, find and kill the process:
+lsof -ti:5001  # Find process ID using port 5001
+kill -9 <PID>  # Kill the process with the returned PID
+```
 
 ## 📚 API Documentation
 
@@ -243,7 +265,129 @@ picturesearch/
 1. **API Key Error**: Ensure your Google Gemini API key is correctly set in `.env`
 2. **CORS Issues**: Make sure Flask-CORS is installed and enabled
 3. **Environment Issues**: Activate the virtual environment before running Python commands
-4. **Port Conflicts**: Ensure ports 3000 and 5001 are available
+4. **Port Conflicts**: Ensure ports 3000 (React) and 5001 (Flask API) are available
+
+### Port Management
+
+#### Port 5001 Already in Use
+
+```bash
+# Find what's using port 5001
+lsof -ti:5001
+
+# Kill the process
+kill -9 <PID>
+
+# Alternative: Use a different port
+python api_server.py --port 5002
+```
+
+#### Port 3000 Already in Use
+
+```bash
+# React will prompt to use a different port, or manually specify:
+PORT=3001 npm start
+```
+
+### Environment Variables Not Loading
+
+If you see the wrong API key in error messages, check for system-level environment variables:
+
+```bash
+echo $GOOGLE_API_KEY  # Should match your .env file
+unset GOOGLE_API_KEY  # If different from .env, unset it
+```
+
+### Virtual Environment Issues
+
+```bash
+# Ensure virtual environment is active
+source venv/bin/activate
+
+# Reinstall dependencies if needed
+pip install -r requirements.txt
+```
+
+### Pictures Not Loading
+
+1. **Check Data Folder**: Ensure `data/` folder exists in the root directory
+2. **File Permissions**: Make sure image files are readable
+3. **Supported Formats**: Use .jpg, .jpeg, .png, or .gif files
+4. **File Names**: Avoid special characters in filenames
+
+### API Connection Issues
+
+1. **Backend Running**: Ensure `python api_server.py` is running without errors
+2. **CORS Configuration**: Flask-CORS should be properly installed
+3. **Network**: Check that `http://localhost:5001/health` returns a successful response
+
+### Frontend Build Issues
+
+```bash
+# Clear cache and reinstall
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+
+# If still having issues, check Node.js version
+node --version  # Should be 14+
+```
+
+## 📁 Project File Structure
+
+```
+picturesearch/
+├── data/                    # Picture database (create this folder)
+│   ├── image1.jpg          # Your image files go here
+│   ├── image2.png
+│   └── ...
+├── prompt_enhancer/         # Python AI processing modules
+│   ├── georgian_corrector.py # Main correction logic
+│   ├── gemini_client.py     # Gemini AI integration
+│   ├── api.py              # API wrapper functions
+│   └── cli.py              # Command line interface
+├── frontend/               # React frontend application
+│   ├── src/
+│   │   ├── App.js         # Main React component
+│   │   └── App.css        # Styling
+│   ├── public/
+│   └── package.json       # Frontend dependencies
+├── api_server.py          # Flask API server
+├── .env                   # Environment variables (create this)
+├── requirements.txt       # Python dependencies
+└── README.md             # This file
+```
+
+## 🔧 Complete Setup Script
+
+For a quick setup, run these commands in sequence:
+
+```bash
+# 1. Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate
+
+# 2. Install Python dependencies
+pip install -r requirements.txt
+
+# 3. Create data folder for pictures
+mkdir data
+
+# 4. Create .env file (then add your API key manually)
+touch .env
+echo "Add your GOOGLE_API_KEY to the .env file"
+
+# 5. Setup frontend
+cd frontend
+npm install
+cd ..
+
+# 6. Start backend (in one terminal)
+python api_server.py
+
+# 7. Start frontend (in another terminal)
+cd frontend && npm start
+```
 
 ### Environment Variables Not Loading
 
