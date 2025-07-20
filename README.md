@@ -61,11 +61,33 @@ pip install -r requirements.txt
 
 #### Configure Environment Variables
 
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory with your Google Gemini API key:
+
+```bash
+# Create .env file using nano editor
+nano .env
+```
+
+Copy and paste this template, then replace with your actual API key:
 
 ```env
+# Google Gemini AI API Key
+# Get your API key from: https://aistudio.google.com/app/apikey
 GOOGLE_API_KEY=your_google_gemini_api_key_here
 ```
+
+**Important:**
+
+- Replace `your_google_gemini_api_key_here` with your actual Google Gemini API key
+- Save and exit nano: Press `Ctrl+X`, then `Y`, then `Enter`
+- Keep your API key secure and never commit it to version control
+
+To get a Google Gemini API key:
+
+1. Visit [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Sign in with your Google account
+3. Click "Create API Key"
+4. Copy the generated key and paste it in your `.env` file
 
 #### Setup Picture Database
 
@@ -373,9 +395,10 @@ pip install -r requirements.txt
 # 3. Create data folder for pictures
 mkdir data
 
-# 4. Create .env file (then add your API key manually)
-touch .env
-echo "Add your GOOGLE_API_KEY to the .env file"
+# 4. Create .env file with nano editor
+nano .env
+# Copy the template from above and add your Google Gemini API key
+# Save with Ctrl+X, then Y, then Enter
 
 # 5. Setup frontend
 cd frontend
