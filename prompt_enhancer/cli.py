@@ -23,6 +23,7 @@ def main():
     parser.add_argument("--pipeline", "-p", action="store_true", help="Run pipeline: corrected -> llm_friendly")
     parser.add_argument("--translate", "-t", action="store_true", help="Include translation in pipeline")
     parser.add_argument("--simplify-pipeline", action="store_true", help="Run simplify pipeline: corrected -> simplified")
+    parser.add_argument("--agent", action="store_true", help="Use photo agent (auto-detects photo search and applies simplify pipeline)")
     
     args = parser.parse_args()
     
@@ -45,6 +46,14 @@ def main():
             process_simplify_pipeline_file(args.file, args.output, args.batch, args.json, args.stats, api)
         else:
             print("No text provided for simplify pipeline. Use --help for usage information.")
+            sys.exit(1)
+    elif args.agent:
+        if args.text:
+            process_agent_text(args.text, args.json, args.stats, api)
+        elif args.file:
+            process_agent_file(args.file, args.output, args.batch, args.json, args.stats, api)
+        else:
+            print("No text provided for agent. Use --help for usage information.")
             sys.exit(1)
     elif args.file:
         process_file(args.file, args.output, args.style, args.batch, args.json, args.stats, api)
@@ -312,6 +321,89 @@ def process_simplify_pipeline_file(input_file, output_file, batch, json_output, 
         print(f"Error processing file: {e}")
         sys.exit(1)
 
+def process_agent_text(text, json_output, show_stats, api):
+    """Process a single text through the photo agent"""
+    from .georgian_corrector import process_photo_prompt
+    
+    result = process_photo_prompt(text, show_steps=True)
+    
+    if json_output:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(f"\nPhoto Agent Results:")
+        print(f"  Original: {result['original']}")
+        print(f"  Is Photo Search: {result['is_photo_search']}")
+        print(f"  Photo Count: {result['photo_count']}")
+        print(f"  Simplified Query: {result['simplified_query']}")
+        print(f"  Processing Type: {result['processing_type']}")
+        
+        if show_stats and result.get('pipeline_steps'):
+            pipeline = result['pipeline_steps']
+            input_len = len(pipeline["input"])
+            final_len = len(pipeline["final"])
+            changes = sum(1 for a, b in zip(pipeline["input"], pipeline["final"]) if a != b)
+            print(f"\nAgent Statistics:")
+            print(f"  Input length: {input_len}")
+            print(f"  Final length: {final_len}")
+            print(f"  Character changes: {changes}")
+            print(f"  Simplification ratio: {final_len/input_len:.2f}")
+
+def process_agent_file(input_file, output_file, batch, json_output, show_stats, api):
+    """Process text from a file through the photo agent"""
+    from .georgian_corrector import batch_process_photo_prompts, process_photo_prompt
+    
+    try:
+        with open(input_file, 'r', encoding='utf-8') as f:
+            if batch:
+                texts = [line.strip() for line in f if line.strip()]
+                results = batch_process_photo_prompts(texts, show_steps=True)
+            else:
+                text = f.read().strip()
+                results = [process_photo_prompt(text, show_steps=True)]
+        
+        if output_file:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                if json_output:
+                    json.dump(results, f, indent=2, ensure_ascii=False)
+                else:
+                    for i, result in enumerate(results, 1):
+                        f.write(f"Prompt {i} Agent Results:\n")
+                        f.write(f"Original: {result['original']}\n")
+                        f.write(f"Is Photo Search: {result['is_photo_search']}\n")
+                        f.write(f"Photo Count: {result['photo_count']}\n")
+                        f.write(f"Simplified Query: {result['simplified_query']}\n")
+                        f.write(f"Processing Type: {result['processing_type']}\n")
+                        if show_stats and result.get('pipeline_steps'):
+                            pipeline = result['pipeline_steps']
+                            input_len = len(pipeline["input"])
+                            final_len = len(pipeline["final"])
+                            changes = sum(1 for a, b in zip(pipeline["input"], pipeline["final"]) if a != b)
+                            f.write(f"Stats: {changes} changes, ratio: {final_len/input_len:.2f}\n")
+                        f.write("\n")
+        else:
+            if json_output:
+                print(json.dumps(results, indent=2, ensure_ascii=False))
+            else:
+                for i, result in enumerate(results, 1):
+                    print(f"\nPrompt {i} Results:")
+                    print(f"  Original: {result['original']}")
+                    print(f"  Is Photo Search: {result['is_photo_search']}")
+                    print(f"  Photo Count: {result['photo_count']}")
+                    print(f"  Final Query: {result['simplified_query']}")
+                    if show_stats and result.get('pipeline_steps'):
+                        pipeline = result['pipeline_steps']
+                        input_len = len(pipeline["input"])
+                        final_len = len(pipeline["final"])
+                        changes = sum(1 for a, b in zip(pipeline["input"], pipeline["final"]) if a != b)
+                        print(f"  Stats: {changes} changes, ratio: {final_len/input_len:.2f}")
+                    
+    except FileNotFoundError:
+        print(f"Error: File '{input_file}' not found")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error processing file: {e}")
+        sys.exit(1)
+
 def print_help():
     """Print help information"""
     print("\nCommands:")
@@ -331,6 +423,7 @@ def print_help():
     print("  Use --pipeline to run: Input -> Corrected -> LLM-Friendly -> Output")
     print("  Use --translate with --pipeline to include translation.")
     print("  Use --simplify-pipeline to run: Input -> Corrected -> Simplified -> Output")
+    print("  Use --agent for automatic photo search detection and processing")
 
 if __name__ == "__main__":
     main() 

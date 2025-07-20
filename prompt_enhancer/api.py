@@ -2,7 +2,7 @@
 API Interface for Georgian Text Correction
 """
 
-from .georgian_corrector import GeorgianTextCorrector, pipeline_correct_georgian, batch_pipeline_correct_georgian, simplify_pipeline_correct_georgian, batch_simplify_pipeline_correct_georgian
+from .georgian_corrector import GeorgianTextCorrector, pipeline_correct_georgian, batch_pipeline_correct_georgian, simplify_pipeline_correct_georgian, batch_simplify_pipeline_correct_georgian, process_photo_prompt, batch_process_photo_prompts
 
 class GeorgianCorrectionAPI:
     """API interface for Georgian text correction"""
@@ -201,6 +201,37 @@ class GeorgianCorrectionAPI:
                 "total_texts": len(texts)
             }
     
+    def agent_single(self, text: str) -> dict:
+        """Process a single text with photo agent (auto-detects photo search)"""
+        try:
+            result = process_photo_prompt(text, show_steps=False)
+            return {
+                "success": True,
+                "result": result
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "original": text
+            }
+    
+    def agent_batch(self, texts: list) -> dict:
+        """Process multiple texts with photo agent"""
+        try:
+            results = batch_process_photo_prompts(texts, show_steps=False)
+            return {
+                "success": True,
+                "results": results,
+                "total_texts": len(texts)
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "total_texts": len(texts)
+            }
+    
     def get_available_styles(self) -> list:
         """Get list of available correction styles"""
         return list(self.corrector.correction_prompts.keys())
@@ -254,4 +285,14 @@ def simplify_pipeline_text_api(text: str) -> dict:
 def simplify_pipeline_batch_api(texts: list) -> dict:
     """API function to run simplify pipeline on multiple texts"""
     api = GeorgianCorrectionAPI()
-    return api.simplify_pipeline_batch(texts) 
+    return api.simplify_pipeline_batch(texts)
+
+def agent_text_api(text: str) -> dict:
+    """API function to process text with photo agent (auto-detects photo search)"""
+    api = GeorgianCorrectionAPI()
+    return api.agent_single(text)
+
+def agent_batch_api(texts: list) -> dict:
+    """API function to process multiple texts with photo agent"""
+    api = GeorgianCorrectionAPI()
+    return api.agent_batch(texts) 

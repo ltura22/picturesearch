@@ -57,6 +57,9 @@ python -m prompt_enhancer "ამ ფოტოებიდან მიპოვ
 # Simplify pipeline (corrected -> simplified)
 python -m prompt_enhancer "ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელეც კაც ზის" --simplify-pipeline
 
+# Photo agent (auto-detects photo search and applies appropriate processing)
+python -m prompt_enhancer "ჩემს საქაღალდეში მიპოვე სამი ფოტო რომელშიც ნათლად ჩანს კაცი და ქალი" --agent
+
 # Direct translation to English
 python -m prompt_enhancer "გამარჯობა, როგორ ხარ?" --style translate_to_english
 
@@ -88,6 +91,14 @@ print(english)
 search_query = "ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელზეც კაცი ზის"
 simplified = simplify_georgian_text(search_query)
 print(simplified)  # Output: "ცხენი რომელზეც კაცი ზის"
+
+# Photo agent (auto-detects photo search and processes accordingly)
+from prompt_enhancer.georgian_corrector import process_photo_prompt
+photo_query = "ჩემს საქაღალდეში მიპოვე სამი ფოტო რომელშიც ნათლად ჩანს კაცი და ქალი"
+result = process_photo_prompt(photo_query, show_steps=False)
+print(f"Is photo search: {result['is_photo_search']}")  # True
+print(f"Photo count: {result['photo_count']}")  # 3
+print(f"Simplified: {result['simplified_query']}")  # "კაცი და ქალი"
 ```
 
 ### Class-based Usage
@@ -126,6 +137,18 @@ print(pipeline_result['final'])  # Output: "ცხენი რომელზ�
 queries = ["ამ ფოტოებიდან მიპოვე ძაღლის ფოტო", "გთხოვთ გამოიჩინოთ კატის სურათი"]
 pipeline_results = corrector.batch_simplify_pipeline_correct(queries)
 
+# Photo Agent (automatic photo search detection)
+from prompt_enhancer.georgian_corrector import PhotoAgent
+agent = PhotoAgent()
+
+# Analyze a prompt
+analysis = agent.analyze_prompt("ჩემს საქაღალდეში მიპოვე ხუთი ფოტო რომელშიც ნათლად ჩანს ძაღლი")
+print(f"Photo count: {analysis['photo_count']}")  # 5
+
+# Process with auto-detection
+result = agent.process_prompt("ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელზეც კაცი ზის")
+print(f"Final query: {result['simplified_query']}")  # "ცხენი რომელზეც კაცი ზის"
+
 # Get statistics
 stats = corrector.get_correction_stats(original_text, corrected_text)
 ```
@@ -133,7 +156,7 @@ stats = corrector.get_correction_stats(original_text, corrected_text)
 ### API Usage
 
 ```python
-from prompt_enhancer.api import correct_text_api, translate_text_api, pipeline_text_api, simplify_text_api
+from prompt_enhancer.api import correct_text_api, translate_text_api, pipeline_text_api, simplify_text_api, agent_text_api
 
 # Single text correction
 result = correct_text_api("თქვენი ტექსტი", style="advanced")
@@ -151,9 +174,10 @@ print(result['simplified'])  # Output: "ცხენი რომელზეც
 result = simplify_pipeline_text_api("ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელეც კაც ზის")
 print(result['result']['final'])  # Output: "ცხენი რომელზეც კაცი ზის"
 
-# Pipeline with translation
-result = pipeline_text_api("დღეს კარგი ამინდია", include_translation=True)
-print(result['result']['final'])  # English translation
+# Photo agent (auto-detects photo search)
+result = agent_text_api("ჩემს საქაღალდეში მიპოვე 9 ფოტო რომელშიც ნათლად ჩანს კაცი და ქალი")
+print(f"Photo count: {result['result']['photo_count']}")  # 9
+print(f"Simplified: {result['result']['simplified_query']}")  # "კაცი და ქალი"
 ```
 
 ## Correction Styles
@@ -296,3 +320,7 @@ The module includes comprehensive error handling:
 To add new correction styles or improve the module:
 
 1. Add new prompt templates in `GeorgianTextCorrector._get_*_correction_prompt()`
+
+```
+
+```

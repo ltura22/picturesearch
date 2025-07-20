@@ -27,7 +27,8 @@ class GeorgianTextCorrector:
             "corrected": self._get_corrected_style_prompt(),
             "llm_friendly": self._get_llm_friendly_prompt(),
             "translate_to_english": self._get_translate_to_english_prompt(),
-            "simplify": self._get_simplify_prompt()
+            "simplify": self._get_simplify_prompt(),
+            "photo_agent": self._get_photo_agent_prompt()
         }
     
     def _get_basic_correction_prompt(self) -> str:
@@ -235,6 +236,55 @@ class GeorgianTextCorrector:
         Text to simplify: {text}
         
         Essential object description:
+        """
+    
+    def _get_photo_agent_prompt(self) -> str:
+        """Prompt for photo agent to analyze prompts and extract photo search information"""
+        return """
+        You are a Georgian photo search agent. Analyze the following Georgian prompt and extract the number of photos requested and whether it's a photo search query.
+        
+        Rules:
+        1. Detect if this is a photo search request. It MUST contain:
+           - Photo/image words: "ფოტო", "სურათი", "ფოტოები", "სურათები"
+           - AND action words: "მიპოვე", "გამოიჩინე", "მომწოდე", "აირჩიე", "მოძებნე", "ნახე"
+           - OR location phrases: "ამ ფოტოებიდან", "ამ სურათებიდან", "საქაღალდეში", "კოლექციაში"
+        
+        2. Extract the number of photos requested:
+           - "ფოტო" (singular without number) = 1
+           - "ფოტოები" (plural without specific number) = 5 (default plural)
+           - Numbers with "ფოტო": "ერთი ფოტო"=1, "ორი ფოტო"=2, "სამი ფოტო"=3, etc.
+           - Digits with "ფოტო": "1 ფოტო"=1, "11 ფოტო"=11, "9 ფოტო"=9, etc.
+           - "ცალი" means "pieces": "11 ცალი ფოტო"=11, "5 ცალი ფოტო"=5
+        
+        3. Return in format: "count|is_photo_search"
+           - count: exact number (1, 3, 5, 9, 11, etc.) or "1" if not specified
+           - is_photo_search: "yes" or "no"
+        
+        4. NOT photo search if:
+           - Only contains object names without photo keywords: "ცხვარი", "მზე", "კატა"
+           - Only contains "ფოტო" but no action words: "მზის ფოტო"
+           - Negative statements without action: "ფოტო არ მაქვს"
+        
+        Examples:
+        - "ჩემს საქაღალდეში მიპოვე ფოტო რომელშიც ნათლად ჩანს კაცი და ქალი" → "1|yes"
+        - "ჩემს საქაღალდეში მიპოვე ფოტოები რომელშიც ნათლად ჩანს კაცი და ქალი" → "5|yes"
+        - "ჩემს საქაღალდეში მიპოვე სამი ფოტო რომელშიც ნათლად ჩანს კაცი და ქალი" → "3|yes"
+        - "ჩემს საქაღალდეში მიპოვე 9 ფოტო რომელშიც ნათლად ჩანს კაცი და ქალი" → "9|yes"
+        - "მზის 11 ცალი ფოტო მიპოვე" → "11|yes"
+        - "ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელზეც კაცი ზის" → "1|yes"
+        - "მზის ფოტო" → "1|no" (no action word)
+        - "ცხვარი" → "1|no" (no photo keywords)
+        - "გამარჯობა, როგორ ხარ?" → "1|no"
+        - "მზის 11 ცალი ფოტო" → "11|no" (no action word)
+        - "ფოტო არ მაქვს" → "1|no" (negative, no action)
+        
+        Georgian numbers to recognize:
+        - ერთი=1, ორი=2, სამი=3, ოთხი=4, ხუთი=5, ექვსი=6, შვიდი=7, რვა=8, ცხრა=9, ათი=10
+        - Also recognize digits: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, etc.
+        
+        Prompt to analyze: {text}
+        
+        Result:
         """
     
     def _detect_context_type(self, text: str) -> str:
@@ -595,6 +645,159 @@ class GeorgianTextCorrector:
         
         return results
 
+class PhotoAgent:
+    """
+    Agentic structure for photo search queries
+    Automatically determines when to use simplify pipeline and extracts photo count
+    """
+    
+    def __init__(self):
+        self.corrector = GeorgianTextCorrector()
+    
+    def analyze_prompt(self, text: str) -> Dict[str, any]:
+        """
+        Analyze Georgian prompt to determine if it's a photo search and extract information
+        
+        Args:
+            text: Georgian prompt text
+            
+        Returns:
+            Dictionary with analysis results
+        """
+        if not text or not text.strip():
+            return {
+                "is_photo_search": False,
+                "photo_count": 0,
+                "simplified_query": "",
+                "analysis": "empty_prompt"
+            }
+        
+        # Use the photo agent prompt to analyze
+        prompt_template = self.corrector.correction_prompts["photo_agent"]
+        prompt = prompt_template.format(text=text)
+        
+        try:
+            # Get analysis from Gemini
+            response = ask_gemini(prompt)
+            response = response.strip()
+            
+            # Parse response format: "count|is_photo_search"
+            if "|" in response:
+                count_str, is_search = response.split("|", 1)
+                count_str = count_str.strip()
+                is_search = is_search.strip().lower()
+                
+                is_photo_search = is_search == "yes"
+                
+                # Parse count
+                photo_count = 1  # default
+                if count_str.isdigit():
+                    photo_count = int(count_str)
+                elif count_str == "unknown":
+                    photo_count = 1
+                else:
+                    try:
+                        photo_count = int(count_str)
+                    except:
+                        photo_count = 1
+                
+                return {
+                    "is_photo_search": is_photo_search,
+                    "photo_count": photo_count,
+                    "analysis": "success",
+                    "raw_response": response
+                }
+            else:
+                return {
+                    "is_photo_search": False,
+                    "photo_count": 0,
+                    "analysis": "parse_error",
+                    "raw_response": response
+                }
+                
+        except Exception as e:
+            return {
+                "is_photo_search": False,
+                "photo_count": 0,
+                "analysis": f"error: {str(e)}",
+                "simplified_query": ""
+            }
+    
+    def process_prompt(self, text: str, show_steps: bool = True) -> Dict[str, any]:
+        """
+        Process Georgian prompt with agentic structure
+        Automatically applies simplify pipeline if it's a photo search
+        
+        Args:
+            text: Georgian prompt text
+            show_steps: Whether to show processing steps
+            
+        Returns:
+            Dictionary with processing results
+        """
+        if show_steps:
+            print("Photo Agent: Analyzing prompt...")
+        
+        # Step 1: Analyze the prompt
+        analysis = self.analyze_prompt(text)
+        
+        if show_steps:
+            print(f"Analysis: {analysis}")
+        
+        result = {
+            "original": text,
+            "is_photo_search": analysis["is_photo_search"],
+            "photo_count": analysis["photo_count"],
+            "analysis": analysis["analysis"]
+        }
+        
+        # Step 2: If it's a photo search, apply simplify pipeline
+        if analysis["is_photo_search"]:
+            if show_steps:
+                print("Detected photo search - applying simplify pipeline...")
+            
+            pipeline_result = self.corrector.simplify_pipeline_correct(text, show_steps=show_steps)
+            result.update({
+                "simplified_query": pipeline_result["final"],
+                "pipeline_steps": pipeline_result,
+                "processing_type": "simplify_pipeline"
+            })
+        else:
+            if show_steps:
+                print("Not a photo search - no pipeline applied")
+            
+            result.update({
+                "simplified_query": text,
+                "processing_type": "no_processing"
+            })
+        
+        return result
+    
+    def batch_process_prompts(self, texts: List[str], show_steps: bool = True) -> List[Dict[str, any]]:
+        """
+        Process multiple prompts with agentic structure
+        
+        Args:
+            texts: List of Georgian prompt texts
+            show_steps: Whether to show processing steps
+            
+        Returns:
+            List of processing results
+        """
+        results = []
+        
+        for i, text in enumerate(texts, 1):
+            if show_steps:
+                print(f"\n--- Processing Prompt {i}/{len(texts)} ---")
+            
+            result = self.process_prompt(text, show_steps)
+            results.append(result)
+            
+            if show_steps and i < len(texts):
+                print()  # Add spacing between prompts
+        
+        return results
+
 # Convenience functions for easy use
 def correct_georgian_text(text: str, style: str = "auto") -> str:
     """Simple function to correct Georgian text"""
@@ -645,6 +848,22 @@ def batch_simplify_pipeline_correct_georgian(texts: List[str], show_steps: bool 
     """Simple function to run batch simplify pipeline on Georgian texts"""
     corrector = GeorgianTextCorrector()
     return corrector.batch_simplify_pipeline_correct(texts, show_steps)
+
+# Photo Agent convenience functions
+def analyze_photo_prompt(text: str) -> Dict[str, any]:
+    """Simple function to analyze a Georgian photo prompt"""
+    agent = PhotoAgent()
+    return agent.analyze_prompt(text)
+
+def process_photo_prompt(text: str, show_steps: bool = True) -> Dict[str, any]:
+    """Simple function to process a Georgian photo prompt with agentic structure"""
+    agent = PhotoAgent()
+    return agent.process_prompt(text, show_steps)
+
+def batch_process_photo_prompts(texts: List[str], show_steps: bool = True) -> List[Dict[str, any]]:
+    """Simple function to process multiple Georgian photo prompts"""
+    agent = PhotoAgent()
+    return agent.batch_process_prompts(texts, show_steps)
 
 if __name__ == "__main__":
     # Example usage
