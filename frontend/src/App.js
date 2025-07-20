@@ -395,6 +395,17 @@ const ProcessInput = styled.div`
   margin-bottom: 4px;
 `;
 
+const PictureScore = styled.div`
+  font-size: 9px;
+  color: #10b981;
+  background: #f0fdf4;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 5px;
+  font-weight: 600;
+`;
+
 function App() {
   const [photoInput, setPhotoInput] = useState("");
   const [photoResult, setPhotoResult] = useState(null);
@@ -461,11 +472,32 @@ function App() {
                 )
               );
 
-              // On the last step, show the matched pictures only if it's a photo search
+              // On the last step, show the actual search results
               if (step.id === 5) {
                 setTimeout(() => {
-                  if (response.data.final_result.is_photo_search) {
-                    const photoCount = response.data.final_result.photo_count;
+                  const finalResult = response.data.final_result;
+                  if (
+                    finalResult.is_photo_search &&
+                    finalResult.has_search_results
+                  ) {
+                    // Use actual search results with scores
+                    const searchResults = finalResult.search_results.map(
+                      (result) => ({
+                        name: result.path.split("/").pop(),
+                        type: "search_result",
+                        tags: [`Score: ${result.score.toFixed(2)}%`],
+                        url: result.url,
+                        score: result.score,
+                        path: result.path,
+                      })
+                    );
+                    setPictures(searchResults);
+                  } else if (
+                    finalResult.is_photo_search &&
+                    !finalResult.has_search_results
+                  ) {
+                    // Fallback to available pictures if search failed
+                    const photoCount = finalResult.photo_count;
                     const matchedPictures = allPictures.slice(
                       0,
                       Math.min(photoCount, allPictures.length)
@@ -640,6 +672,17 @@ function App() {
                     Search Terms:
                   </ResultLabel>
                   <ResultText>{photoResult.simplified_query}</ResultText>
+
+                  {photoResult.has_search_results && (
+                    <>
+                      <ResultLabel style={{ marginTop: "15px" }}>
+                        Search Method:
+                      </ResultLabel>
+                      <ResultText>
+                        AI-powered similarity search (BM25 + Vector embeddings)
+                      </ResultText>
+                    </>
+                  )}
                 </>
               )}
 
@@ -661,12 +704,12 @@ function App() {
                 <StatCard>
                   <StatValue>
                     {photoResult.is_photo_search
-                      ? photoResult.processing_type === "simplify_pipeline"
-                        ? "Smart"
-                        : "Basic"
+                      ? photoResult.has_search_results
+                        ? "AI Search"
+                        : "Fallback"
                       : "None"}
                   </StatValue>
-                  <StatLabel>Processing</StatLabel>
+                  <StatLabel>Search Method</StatLabel>
                 </StatCard>
               </StatsContainer>
             </ResultContainer>
@@ -716,6 +759,11 @@ function App() {
                   />
                   <PictureName>{picture.name}</PictureName>
                   <PictureType>{picture.type}</PictureType>
+                  {picture.score && (
+                    <PictureScore>
+                      Similarity: {picture.score.toFixed(2)}%
+                    </PictureScore>
+                  )}
                   <PictureTags>{picture.tags?.join(", ")}</PictureTags>
                 </PictureCard>
               ))}

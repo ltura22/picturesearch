@@ -265,7 +265,7 @@ def pipeline_text_api(text: str, include_translation: bool = False) -> dict:
 def pipeline_batch_api(texts: list, include_translation: bool = False) -> dict:
     """API function to run pipeline on multiple texts"""
     api = GeorgianCorrectionAPI()
-    return api.pipeline_batch(texts, include_translation)
+    return api.pipeline_batch(texts, include_translation) 
 
 def simplify_text_api(text: str) -> dict:
     """API function to simplify text to extract essential search terms"""

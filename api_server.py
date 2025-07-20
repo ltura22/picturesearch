@@ -64,7 +64,7 @@ def correct_text():
 
 @app.route('/process-steps', methods=['POST'])
 def process_steps():
-    """Get actual processing steps with real outputs"""
+    """Get actual processing steps with real outputs and search results"""
     try:
         data = request.get_json()
         text = data.get('text', '')
@@ -85,7 +85,7 @@ def process_steps():
         })
         
         # Step 2: Detect photo search intent
-        agent_result = process_photo_prompt(text, show_steps=False)
+        agent_result = process_photo_prompt(text, show_steps=False, use_search=True)
         steps.append({
             "id": 2,
             "title": "Detecting photo search intent...",
@@ -127,30 +127,33 @@ def process_steps():
                 "output": "No photo search detected - no processing\nSkipping text simplification"
             })
         
-        # Step 5: Search in database
-        data_folder = os.path.join(os.path.dirname(__file__), 'data')
-        all_files = []
-        if os.path.exists(data_folder):
-            for ext in ['*.jpg', '*.jpeg', '*.png', '*.gif']:
-                all_files.extend(glob.glob(os.path.join(data_folder, ext)))
-        
-        total_available = len(all_files)
-        
+        # Step 5: Search in database with actual results
         if agent_result['is_photo_search']:
             requested_count = agent_result['photo_count']
-            found_count = min(requested_count, total_available)
-            steps.append({
-                "id": 5,
-                "title": "Searching in picture database...",
-                "input": f"Search for {requested_count} pictures",
-                "output": f"Total pictures in database: {total_available}\nRequested: {requested_count}\nFound: {found_count}\nSearch completed successfully ✓"
-            })
+            found_results = agent_result.get('search_results', [])
+            found_count = len(found_results)
+            
+            if agent_result.get('has_search_results', False):
+                top_scores = [f"{result['score']:.2f}%" for result in found_results[:3]]
+                steps.append({
+                    "id": 5,
+                    "title": "Searching in picture database...",
+                    "input": f"Search query: \"{agent_result['simplified_query']}\"",
+                    "output": f"AI Search completed ✓\nRequested: {requested_count} photos\nFound: {found_count} matching results\nTop similarity scores: {', '.join(top_scores)}\nSearch algorithm: BM25 + FAISS vector similarity"
+                })
+            else:
+                steps.append({
+                    "id": 5,
+                    "title": "Searching in picture database...",
+                    "input": f"Search query: \"{agent_result['simplified_query']}\"",
+                    "output": f"Search attempted but no results available\nThis might be due to missing search index files\nFalling back to available pictures from data folder"
+                })
         else:
             steps.append({
                 "id": 5,
                 "title": "Searching in picture database...",
                 "input": "No search query",
-                "output": f"No search terms detected\nTotal pictures in database: {total_available}\nNo search performed - this is not a search query"
+                "output": f"No search terms detected\nNo search performed - this is not a search query"
             })
 
         return jsonify({
@@ -222,7 +225,7 @@ def simplify_pipeline():
 
 @app.route('/agent', methods=['POST'])
 def photo_agent():
-    """Analyze photo search query with agent"""
+    """Analyze photo search query with agent and perform actual search"""
     try:
         data = request.get_json()
         text = data.get('text', '')
@@ -230,10 +233,13 @@ def photo_agent():
         if not text.strip():
             return jsonify({"error": "No text provided"}), 400
         
-        # Use the API function to get structured response
-        result = agent_text_api(text)
+        # Use the enhanced function that includes search results
+        result = process_photo_prompt(text, show_steps=False, use_search=True)
         
-        return jsonify(result)
+        return jsonify({
+            "success": True,
+            "result": result
+        })
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -282,7 +288,8 @@ def get_pictures():
                         "name": filename,
                         "type": picture_type,
                         "tags": tags,
-                        "url": f"/data/{filename}"
+                        "url": f"/data/{filename}",
+                        "score": None  # No score for browse mode
                     })
         
         return jsonify({"pictures": pictures, "total": len(pictures)})

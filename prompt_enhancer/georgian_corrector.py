@@ -9,7 +9,21 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from .gemini_client import ask_gemini
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
+
+# Add picture_search to path if it exists
+picture_search_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'picture_search')
+if os.path.exists(picture_search_path):
+    sys.path.append(picture_search_path)
+    try:
+        from compare import search_wrapper
+        SEARCH_AVAILABLE = True
+    except ImportError:
+        SEARCH_AVAILABLE = False
+        search_wrapper = None
+else:
+    SEARCH_AVAILABLE = False
+    search_wrapper = None
 
 class GeorgianTextCorrector:
     """
@@ -855,10 +869,44 @@ def analyze_photo_prompt(text: str) -> Dict[str, any]:
     agent = PhotoAgent()
     return agent.analyze_prompt(text)
 
-def process_photo_prompt(text: str, show_steps: bool = True) -> Dict[str, any]:
-    """Simple function to process a Georgian photo prompt with agentic structure"""
+def process_photo_prompt(text: str, show_steps: bool = True, use_search: bool = True) -> Dict[str, Any]:
+    """
+    Process a photo prompt with the PhotoAgent
+    
+    Args:
+        text: Input text to process
+        show_steps: Whether to show processing steps
+        use_search: Whether to use actual image search
+    
+    Returns:
+        Dict containing processing results and search results if available
+    """
     agent = PhotoAgent()
-    return agent.process_prompt(text, show_steps)
+    result = agent.process_prompt(text, show_steps=show_steps)
+    
+    # If it's a photo search and search is available, get actual results
+    if use_search and result['is_photo_search'] and SEARCH_AVAILABLE and search_wrapper:
+        try:
+            # Use the simplified query for search
+            search_results = search_wrapper(result['simplified_query'], k=result['photo_count'])
+            result['search_results'] = [
+                {
+                    'path': path,
+                    'score': float(score),
+                    'url': f"/data/{os.path.basename(path)}"  # Create URL for frontend
+                }
+                for path, score in search_results
+            ]
+            result['has_search_results'] = True
+        except Exception as e:
+            print(f"Search error: {e}")
+            result['search_results'] = []
+            result['has_search_results'] = False
+    else:
+        result['search_results'] = []
+        result['has_search_results'] = False
+    
+    return result
 
 def batch_process_photo_prompts(texts: List[str], show_steps: bool = True) -> List[Dict[str, any]]:
     """Simple function to process multiple Georgian photo prompts"""
