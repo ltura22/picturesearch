@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser(description="Georgian Text Correction Tool")
     parser.add_argument("text", nargs="?", help="Text to correct")
     parser.add_argument("--style", "-s", default="auto", 
-                       choices=["basic", "advanced", "contextual", "formal", "casual", "corrected", "llm_friendly", "translate_to_english", "auto"],
+                       choices=["basic", "advanced", "contextual", "formal", "casual", "corrected", "llm_friendly", "translate_to_english", "simplify", "auto"],
                        help="Correction style")
     parser.add_argument("--file", "-f", help="Input file with text to correct")
     parser.add_argument("--output", "-o", help="Output file for results")
@@ -22,6 +22,7 @@ def main():
     parser.add_argument("--interactive", "-i", action="store_true", help="Interactive mode")
     parser.add_argument("--pipeline", "-p", action="store_true", help="Run pipeline: corrected -> llm_friendly")
     parser.add_argument("--translate", "-t", action="store_true", help="Include translation in pipeline")
+    parser.add_argument("--simplify-pipeline", action="store_true", help="Run simplify pipeline: corrected -> simplified")
     
     args = parser.parse_args()
     
@@ -36,6 +37,14 @@ def main():
             process_pipeline_file(args.file, args.output, args.batch, args.json, args.stats, api, args.translate)
         else:
             print("No text provided for pipeline. Use --help for usage information.")
+            sys.exit(1)
+    elif args.simplify_pipeline:
+        if args.text:
+            process_simplify_pipeline_text(args.text, args.json, args.stats, api)
+        elif args.file:
+            process_simplify_pipeline_file(args.file, args.output, args.batch, args.json, args.stats, api)
+        else:
+            print("No text provided for simplify pipeline. Use --help for usage information.")
             sys.exit(1)
     elif args.file:
         process_file(args.file, args.output, args.style, args.batch, args.json, args.stats, api)
@@ -233,6 +242,76 @@ def process_pipeline_file(input_file, output_file, batch, json_output, show_stat
         print(f"Error processing file: {e}")
         sys.exit(1)
 
+def process_simplify_pipeline_text(text, json_output, show_stats, api):
+    """Process a single text through the simplify pipeline"""
+    from .georgian_corrector import simplify_pipeline_correct_georgian
+    
+    result = simplify_pipeline_correct_georgian(text, show_steps=True)
+    
+    if json_output:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        if "error" not in result:
+            if show_stats:
+                # Calculate stats for the simplify pipeline
+                input_len = len(result["input"])
+                final_len = len(result["final"])
+                changes = sum(1 for a, b in zip(result["input"], result["final"]) if a != b)
+                print(f"\nSimplify Pipeline Statistics:")
+                print(f"  Input length: {input_len}")
+                print(f"  Final length: {final_len}")
+                print(f"  Character changes: {changes}")
+                print(f"  Simplification ratio: {final_len/input_len:.2f}")
+
+def process_simplify_pipeline_file(input_file, output_file, batch, json_output, show_stats, api):
+    """Process text from a file through the simplify pipeline"""
+    from .georgian_corrector import batch_simplify_pipeline_correct_georgian, simplify_pipeline_correct_georgian
+    
+    try:
+        with open(input_file, 'r', encoding='utf-8') as f:
+            if batch:
+                texts = [line.strip() for line in f if line.strip()]
+                results = batch_simplify_pipeline_correct_georgian(texts, show_steps=True)
+            else:
+                text = f.read().strip()
+                results = [simplify_pipeline_correct_georgian(text, show_steps=True)]
+        
+        if output_file:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                if json_output:
+                    json.dump(results, f, indent=2, ensure_ascii=False)
+                else:
+                    for i, result in enumerate(results, 1):
+                        f.write(f"Query {i} Simplify Pipeline Results:\n")
+                        f.write(f"Input: {result['input']}\n")
+                        f.write(f"Corrected: {result['corrected']}\n")
+                        f.write(f"Simplified: {result['simplified']}\n")
+                        f.write(f"Final: {result['final']}\n")
+                        if show_stats:
+                            input_len = len(result["input"])
+                            final_len = len(result["final"])
+                            changes = sum(1 for a, b in zip(result["input"], result["final"]) if a != b)
+                            f.write(f"Stats: {changes} changes, ratio: {final_len/input_len:.2f}\n")
+                        f.write("\n")
+        else:
+            if json_output:
+                print(json.dumps(results, indent=2, ensure_ascii=False))
+            else:
+                for i, result in enumerate(results, 1):
+                    print(f"\nQuery {i} Final Result: {result['final']}")
+                    if show_stats:
+                        input_len = len(result["input"])
+                        final_len = len(result["final"])
+                        changes = sum(1 for a, b in zip(result["input"], result["final"]) if a != b)
+                        print(f"Stats: {changes} changes, ratio: {final_len/input_len:.2f}")
+                    
+    except FileNotFoundError:
+        print(f"Error: File '{input_file}' not found")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error processing file: {e}")
+        sys.exit(1)
+
 def print_help():
     """Print help information"""
     print("\nCommands:")
@@ -251,6 +330,7 @@ def print_help():
     print("\nPipeline:")
     print("  Use --pipeline to run: Input -> Corrected -> LLM-Friendly -> Output")
     print("  Use --translate with --pipeline to include translation.")
+    print("  Use --simplify-pipeline to run: Input -> Corrected -> Simplified -> Output")
 
 if __name__ == "__main__":
     main() 

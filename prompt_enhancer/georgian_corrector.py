@@ -26,7 +26,8 @@ class GeorgianTextCorrector:
             "casual": self._get_casual_correction_prompt(),
             "corrected": self._get_corrected_style_prompt(),
             "llm_friendly": self._get_llm_friendly_prompt(),
-            "translate_to_english": self._get_translate_to_english_prompt()
+            "translate_to_english": self._get_translate_to_english_prompt(),
+            "simplify": self._get_simplify_prompt()
         }
     
     def _get_basic_correction_prompt(self) -> str:
@@ -206,6 +207,36 @@ class GeorgianTextCorrector:
         English translation:
         """
     
+    def _get_simplify_prompt(self) -> str:
+        """Simplify prompt - extracts essential search terms from user prompts"""
+        return """
+        You are a Georgian language expert. Extract only the essential object/search terms from the following Georgian text by removing unnecessary action words and commands.
+        
+        Rules:
+        1. Remove action words like "მიპოვე" (find me), "გამოიჩინე" (show), "მომწოდე" (give me), etc.
+        2. Remove location/source phrases like "ამ ფოტოებიდან" (from these photos), "ამ სურათებიდან" (from these images), etc.
+        3. Remove auxiliary phrases like "გთხოვთ" (please), "შეიძლება" (can you), etc.
+        4. Convert descriptive phrases to simple object names when possible:
+           - "ცხენის ფოტო" -> "ცხენი"
+           - "ძაღლის სურათი" -> "ძაღლი"
+           - "მანქანის ფოტო" -> "მანქანა"
+        5. Keep descriptive adjectives and relative clauses that describe the object:
+           - "რომელზეც კაცი ზის" (on which a man sits)
+           - "რომელიც წითელია" (which is red)
+        6. Return ONLY the essential object description, nothing more
+        
+        Examples:
+        - "ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელზეც კაცი ზის" -> "ცხენი რომელზეც კაცი ზის"
+        - "გთხოვთ გამოიჩინოთ ძაღლის სურათი რომელიც წითელია" -> "ძაღლი რომელიც წითელია"
+        - "მიპოვე მანქანის ფოტო რომელიც ლურჯია" -> "მანქანა რომელიც ლურჯია"
+        - "ამ სურათებიდან აირჩიე კატის ფოტო რომელიც იატაკზე წევს" -> "კატა რომელიც იატაკზე წევს"
+        - "გამოიჩინე ადამიანის ფოტო რომელსაც წითელი კაბა აცვია" -> "ადამიანი რომელსაც წითელი კაბა აცვია"
+        
+        Text to simplify: {text}
+        
+        Essential object description:
+        """
+    
     def _detect_context_type(self, text: str) -> str:
         """Detect the context type of the text"""
         formal_indicators = ["გთხოვთ", "მადლობა", "წინადადება", "მოთხოვნა", "დოკუმენტი"]
@@ -358,6 +389,50 @@ class GeorgianTextCorrector:
             translated_texts.append(translated)
         return translated_texts
 
+    def simplify_text(self, text: str) -> str:
+        """
+        Simplify Georgian text by extracting only essential search terms
+        
+        Args:
+            text: Georgian text to simplify (usually a command or search query)
+            
+        Returns:
+            Simplified text with only essential object descriptions
+        """
+        if not text or not text.strip():
+            return text
+        
+        # Preprocess the text
+        processed_text = self._preprocess_text(text)
+        
+        # Get simplification prompt
+        prompt_template = self.correction_prompts["simplify"]
+        prompt = prompt_template.format(text=processed_text)
+        
+        # Get simplified text from Gemini
+        try:
+            simplified_text = ask_gemini(prompt)
+            return simplified_text.strip()
+        except Exception as e:
+            print(f"Error during simplification: {e}")
+            return processed_text
+    
+    def batch_simplify(self, texts: List[str]) -> List[str]:
+        """
+        Simplify multiple Georgian texts
+        
+        Args:
+            texts: List of Georgian texts to simplify
+            
+        Returns:
+            List of simplified texts
+        """
+        simplified_texts = []
+        for text in texts:
+            simplified = self.simplify_text(text)
+            simplified_texts.append(simplified)
+        return simplified_texts
+
     def pipeline_correct(self, text: str, show_steps: bool = True, include_translation: bool = False) -> Dict[str, str]:
         """
         Pipeline correction: input -> corrected -> llm_friendly -> (optional) translation -> output
@@ -449,6 +524,77 @@ class GeorgianTextCorrector:
         
         return results
 
+    def simplify_pipeline_correct(self, text: str, show_steps: bool = True) -> Dict[str, str]:
+        """
+        Simplify pipeline: input -> corrected -> simplified -> output
+        Perfect for processing search queries to extract essential terms
+        
+        Args:
+            text: Input Georgian text (usually a search query or command)
+            show_steps: Whether to print intermediate results
+            
+        Returns:
+            Dictionary with all pipeline steps and final simplified result
+        """
+        if not text or not text.strip():
+            return {"error": "No text provided"}
+        
+        results = {
+            "input": text,
+            "corrected": "",
+            "simplified": "",
+            "final": ""
+        }
+        
+        if show_steps:
+            print("Simplify Pipeline: Input -> Corrected -> Simplified -> Output")
+            print("=" * 60)
+            print(f"1. Input: {text}")
+        
+        # Step 1: Correct typos and grammar
+        corrected_text = self.correct_text(text, style="corrected")
+        results["corrected"] = corrected_text
+        
+        if show_steps:
+            print(f"2. Corrected: {corrected_text}")
+        
+        # Step 2: Simplify to extract essential terms
+        simplified_text = self.simplify_text(corrected_text)
+        results["simplified"] = simplified_text
+        results["final"] = simplified_text
+        
+        if show_steps:
+            print(f"3. Simplified: {simplified_text}")
+            print("=" * 60)
+            print(f"Final Result: {results['final']}")
+        
+        return results
+    
+    def batch_simplify_pipeline_correct(self, texts: List[str], show_steps: bool = True) -> List[Dict[str, str]]:
+        """
+        Batch simplify pipeline correction for multiple texts
+        
+        Args:
+            texts: List of Georgian texts (usually search queries)
+            show_steps: Whether to print intermediate results
+            
+        Returns:
+            List of dictionaries with simplify pipeline results for each text
+        """
+        results = []
+        
+        for i, text in enumerate(texts, 1):
+            if show_steps:
+                print(f"\n--- Processing Query {i}/{len(texts)} ---")
+            
+            result = self.simplify_pipeline_correct(text, show_steps)
+            results.append(result)
+            
+            if show_steps and i < len(texts):
+                print()  # Add spacing between texts
+        
+        return results
+
 # Convenience functions for easy use
 def correct_georgian_text(text: str, style: str = "auto") -> str:
     """Simple function to correct Georgian text"""
@@ -470,6 +616,16 @@ def batch_translate_georgian_to_english(texts: List[str]) -> List[str]:
     corrector = GeorgianTextCorrector()
     return corrector.batch_translate_to_english(texts)
 
+def simplify_georgian_text(text: str) -> str:
+    """Simple function to simplify Georgian text"""
+    corrector = GeorgianTextCorrector()
+    return corrector.simplify_text(text)
+
+def batch_simplify_georgian(texts: List[str]) -> List[str]:
+    """Simple function to simplify multiple Georgian texts"""
+    corrector = GeorgianTextCorrector()
+    return corrector.batch_simplify(texts)
+
 def pipeline_correct_georgian(text: str, show_steps: bool = True, include_translation: bool = False) -> Dict[str, str]:
     """Simple function to run pipeline correction on Georgian text"""
     corrector = GeorgianTextCorrector()
@@ -479,6 +635,16 @@ def batch_pipeline_correct_georgian(texts: List[str], show_steps: bool = True, i
     """Simple function to run batch pipeline correction on Georgian texts"""
     corrector = GeorgianTextCorrector()
     return corrector.batch_pipeline_correct(texts, show_steps, include_translation)
+
+def simplify_pipeline_correct_georgian(text: str, show_steps: bool = True) -> Dict[str, str]:
+    """Simple function to run simplify pipeline on Georgian text (corrected -> simplified)"""
+    corrector = GeorgianTextCorrector()
+    return corrector.simplify_pipeline_correct(text, show_steps)
+
+def batch_simplify_pipeline_correct_georgian(texts: List[str], show_steps: bool = True) -> List[Dict[str, str]]:
+    """Simple function to run batch simplify pipeline on Georgian texts"""
+    corrector = GeorgianTextCorrector()
+    return corrector.batch_simplify_pipeline_correct(texts, show_steps)
 
 if __name__ == "__main__":
     # Example usage

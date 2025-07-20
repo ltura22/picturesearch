@@ -51,6 +51,12 @@ python -m prompt_enhancer "დღეს ძალიან მნიშვნე
 # Pipeline with translation (corrected -> llm_friendly -> english)
 python -m prompt_enhancer "საღამო კარგი იყო, მეგობრებთან ერთად ვისაუბირეთ." --pipeline --translate
 
+# Extract essential search terms (simplify)
+python -m prompt_enhancer "ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელზეც კაცი ზის" --style simplify
+
+# Simplify pipeline (corrected -> simplified)
+python -m prompt_enhancer "ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელეც კაც ზის" --simplify-pipeline
+
 # Direct translation to English
 python -m prompt_enhancer "გამარჯობა, როგორ ხარ?" --style translate_to_english
 
@@ -67,7 +73,7 @@ python -m prompt_enhancer --help
 ### Simple Function Usage
 
 ```python
-from prompt_enhancer.georgian_corrector import correct_georgian_text, translate_georgian_to_english
+from prompt_enhancer.georgian_corrector import correct_georgian_text, translate_georgian_to_english, simplify_georgian_text
 
 # Correct a single text
 text = "გამარჯობა როგორ ხარ დღეს ძაან კარგი ამინდია"
@@ -77,6 +83,11 @@ print(corrected)
 # Translate to English
 english = translate_georgian_to_english(text)
 print(english)
+
+# Simplify text to extract essential search terms
+search_query = "ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელზეც კაცი ზის"
+simplified = simplify_georgian_text(search_query)
+print(simplified)  # Output: "ცხენი რომელზეც კაცი ზის"
 ```
 
 ### Class-based Usage
@@ -99,6 +110,22 @@ corrected_texts = corrector.batch_correct(texts, style="casual")
 # Batch translation
 english_texts = corrector.batch_translate_to_english(texts)
 
+# Simplify text to extract essential search terms
+simplified = corrector.simplify_text("ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელზეც კაცი ზის")
+print(simplified)  # Output: "ცხენი რომელზეც კაცი ზის"
+
+# Batch simplification
+search_queries = ["ამ ფოტოებიდან მიპოვე ძაღლის ფოტო", "გთხოვთ გამოიჩინოთ კატის სურათი"]
+simplified_queries = corrector.batch_simplify(search_queries)
+
+# Simplify pipeline (corrected -> simplified)
+pipeline_result = corrector.simplify_pipeline_correct("ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელეც კაც ზის")
+print(pipeline_result['final'])  # Output: "ცხენი რომელზეც კაცი ზის"
+
+# Batch simplify pipeline
+queries = ["ამ ფოტოებიდან მიპოვე ძაღლის ფოტო", "გთხოვთ გამოიჩინოთ კატის სურათი"]
+pipeline_results = corrector.batch_simplify_pipeline_correct(queries)
+
 # Get statistics
 stats = corrector.get_correction_stats(original_text, corrected_text)
 ```
@@ -106,7 +133,7 @@ stats = corrector.get_correction_stats(original_text, corrected_text)
 ### API Usage
 
 ```python
-from prompt_enhancer.api import correct_text_api, translate_text_api, pipeline_text_api
+from prompt_enhancer.api import correct_text_api, translate_text_api, pipeline_text_api, simplify_text_api
 
 # Single text correction
 result = correct_text_api("თქვენი ტექსტი", style="advanced")
@@ -115,6 +142,14 @@ print(result['corrected'])
 # Single text translation
 result = translate_text_api("გამარჯობა, როგორ ხარ?")
 print(result['translated'])
+
+# Single text simplification
+result = simplify_text_api("ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელზეც კაცი ზის")
+print(result['simplified'])  # Output: "ცხენი რომელზეც კაცი ზის"
+
+# Simplify pipeline (corrected -> simplified)
+result = simplify_pipeline_text_api("ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელეც კაც ზის")
+print(result['result']['final'])  # Output: "ცხენი რომელზეც კაცი ზის"
 
 # Pipeline with translation
 result = pipeline_text_api("დღეს კარგი ამინდია", include_translation=True)
@@ -132,14 +167,22 @@ print(result['result']['final'])  # English translation
 - **corrected**: Only fixes typos and sentence structure (minimal changes)
 - **llm_friendly**: Makes text more LLM-friendly by adding explicit subject pronouns and clarifying references
 - **translate_to_english**: Translates Georgian text to English
+- **simplify**: Extracts essential search terms by removing action words and commands
 
 ## Pipeline Feature
 
 The pipeline feature processes text through multiple stages sequentially:
 
+### Standard Pipeline
+
 1. **Corrected Stage**: Fixes typos and sentence structure
 2. **LLM-Friendly Stage**: Makes text more explicit for language models
 3. **Translation Stage** (optional): Translates to English
+
+### Simplify Pipeline
+
+1. **Corrected Stage**: Fixes typos and sentence structure
+2. **Simplified Stage**: Extracts essential search terms by removing action words
 
 ```bash
 # Basic pipeline
@@ -147,6 +190,9 @@ python -m prompt_enhancer "დღეს ძალიან მნიშვნე
 
 # Pipeline with translation
 python -m prompt_enhancer "საღამო კარგი იყო, მეგობრებთან ერთად ვისაუბირეთ." --pipeline --translate
+
+# Simplify pipeline (perfect for search queries)
+python -m prompt_enhancer "ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელეც კაც ზის" --simplify-pipeline
 
 # Output shows each step:
 # 1. Input: საღამო კარგი იყო, მეგობრებთან ერთად ვისაუბირეთ.
@@ -209,6 +255,19 @@ python -m prompt_enhancer "დღეს ძალიან კარგი ა�
 # Output: "The weather is very good today"
 ```
 
+### Simplification (Extract Essential Search Terms)
+
+```bash
+python -m prompt_enhancer "ამ ფოტოებიდან მიპოვე ცხენის ფოტო რომელზეც კაცი ზის" --style simplify
+# Output: "ცხენი რომელზეც კაცი ზის"
+
+python -m prompt_enhancer "გთხოვთ გამოიჩინოთ ძაღლის სურათი რომელიც წითელია" --style simplify
+# Output: "ძაღლი რომელიც წითელია"
+
+python -m prompt_enhancer "მიპოვე მანქანის ფოტო რომელიც ლურჯია" --style simplify
+# Output: "მანქანა რომელიც ლურჯია"
+```
+
 ### Interactive Mode
 
 ```bash
@@ -237,10 +296,3 @@ The module includes comprehensive error handling:
 To add new correction styles or improve the module:
 
 1. Add new prompt templates in `GeorgianTextCorrector._get_*_correction_prompt()`
-2. Update the `correction_prompts` dictionary
-3. Add tests for new functionality
-4. Update documentation
-
-## License
-
-This module is part of the picturesearch project and follows the same license terms.

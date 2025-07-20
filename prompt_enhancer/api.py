@@ -2,7 +2,7 @@
 API Interface for Georgian Text Correction
 """
 
-from .georgian_corrector import GeorgianTextCorrector, pipeline_correct_georgian, batch_pipeline_correct_georgian
+from .georgian_corrector import GeorgianTextCorrector, pipeline_correct_georgian, batch_pipeline_correct_georgian, simplify_pipeline_correct_georgian, batch_simplify_pipeline_correct_georgian
 
 class GeorgianCorrectionAPI:
     """API interface for Georgian text correction"""
@@ -98,6 +98,47 @@ class GeorgianCorrectionAPI:
                 "total_texts": len(texts)
             }
     
+    def simplify_single(self, text: str) -> dict:
+        """Simplify a single text to extract essential search terms"""
+        try:
+            simplified = self.corrector.simplify_text(text)
+            
+            return {
+                "success": True,
+                "original": text,
+                "simplified": simplified
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "original": text
+            }
+    
+    def simplify_batch(self, texts: list) -> dict:
+        """Simplify multiple texts to extract essential search terms"""
+        try:
+            simplified_texts = self.corrector.batch_simplify(texts)
+            results = []
+            
+            for original, simplified in zip(texts, simplified_texts):
+                results.append({
+                    "original": original,
+                    "simplified": simplified
+                })
+            
+            return {
+                "success": True,
+                "results": results,
+                "total_texts": len(texts)
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "total_texts": len(texts)
+            }
+    
     def pipeline_single(self, text: str, include_translation: bool = False) -> dict:
         """Run pipeline on a single text"""
         try:
@@ -117,6 +158,37 @@ class GeorgianCorrectionAPI:
         """Run pipeline on multiple texts"""
         try:
             results = batch_pipeline_correct_georgian(texts, show_steps=False, include_translation=include_translation)
+            return {
+                "success": True,
+                "results": results,
+                "total_texts": len(texts)
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "total_texts": len(texts)
+            }
+    
+    def simplify_pipeline_single(self, text: str) -> dict:
+        """Run simplify pipeline on a single text (corrected -> simplified)"""
+        try:
+            result = simplify_pipeline_correct_georgian(text, show_steps=False)
+            return {
+                "success": True,
+                "result": result
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "original": text
+            }
+    
+    def simplify_pipeline_batch(self, texts: list) -> dict:
+        """Run simplify pipeline on multiple texts"""
+        try:
+            results = batch_simplify_pipeline_correct_georgian(texts, show_steps=False)
             return {
                 "success": True,
                 "results": results,
@@ -162,4 +234,24 @@ def pipeline_text_api(text: str, include_translation: bool = False) -> dict:
 def pipeline_batch_api(texts: list, include_translation: bool = False) -> dict:
     """API function to run pipeline on multiple texts"""
     api = GeorgianCorrectionAPI()
-    return api.pipeline_batch(texts, include_translation) 
+    return api.pipeline_batch(texts, include_translation)
+
+def simplify_text_api(text: str) -> dict:
+    """API function to simplify text to extract essential search terms"""
+    api = GeorgianCorrectionAPI()
+    return api.simplify_single(text)
+
+def simplify_batch_api(texts: list) -> dict:
+    """API function to simplify multiple texts to extract essential search terms"""
+    api = GeorgianCorrectionAPI()
+    return api.simplify_batch(texts)
+
+def simplify_pipeline_text_api(text: str) -> dict:
+    """API function to run simplify pipeline on text (corrected -> simplified)"""
+    api = GeorgianCorrectionAPI()
+    return api.simplify_pipeline_single(text)
+
+def simplify_pipeline_batch_api(texts: list) -> dict:
+    """API function to run simplify pipeline on multiple texts"""
+    api = GeorgianCorrectionAPI()
+    return api.simplify_pipeline_batch(texts) 
